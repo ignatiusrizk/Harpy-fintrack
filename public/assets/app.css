@@ -249,8 +249,10 @@ button {
   bottom: 0;
   width: 100%;
   max-width: 480px;
-  height: var(--nav-height);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* Tinggi = nav + inset supaya inset (border-box) tidak memakan area konten;
+     padding-bottom mendorong isi nav ke atas inset. */
+  height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   box-shadow: var(--shadow-nav);
