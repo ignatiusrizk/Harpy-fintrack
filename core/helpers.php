@@ -47,10 +47,38 @@ function apiErr(Throwable|string $e, ?int $http = null): never
 }
 
 /**
- * Ambil nilai dari $_POST, trim kalau string.
+ * Body JSON request (dipakai window.api() JS -- selalu POST JSON), didekode
+ * & di-cache sekali per request. Content-Type bukan application/json, atau
+ * body bukan JSON object valid -> array kosong (fallback ke $_POST biasa).
+ */
+function jsonBody(): array
+{
+    static $data = null;
+    if ($data !== null) {
+        return $data;
+    }
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+    if (stripos($contentType, 'application/json') === false) {
+        $data = [];
+        return $data;
+    }
+    $decoded = json_decode((string) file_get_contents('php://input'), true);
+    $data = is_array($decoded) ? $decoded : [];
+    return $data;
+}
+
+/**
+ * Ambil nilai dari body JSON (window.api()) kalau ada, fallback ke $_POST
+ * (form-urlencoded/multipart, mis. register.php/login.php yang submit
+ * FormData langsung). Trim kalau string.
  */
 function post(string $k, $default = null)
 {
+    $json = jsonBody();
+    if (array_key_exists($k, $json)) {
+        $v = $json[$k];
+        return is_string($v) ? trim($v) : $v;
+    }
     if (!isset($_POST[$k])) {
         return $default;
     }
@@ -120,4 +148,45 @@ function csrf_check(): void
     if ($session === '' || $header === '' || !hash_equals($session, $header)) {
         apiErr('Token CSRF tidak valid, muat ulang halaman', 419);
     }
+}
+
+/**
+ * Validasi kepemilikan ruang: space harus milik user_id di session. Tidak
+ * ditemukan/bukan milik user -> apiErr 404 (menghentikan eksekusi). Return row
+ * space (id, user_id, name, type, created_at) kalau valid.
+ */
+function ownSpace(int $spaceId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare('SELECT * FROM spaces WHERE id = ? AND user_id = ?');
+    $stmt->execute([$spaceId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
+
+/**
+ * Validasi kepemilikan akun: rantai akun -> ruang -> user_id di session.
+ * Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan eksekusi).
+ * Return row akun (id, space_id, name, type, initial_balance, is_archived)
+ * kalau valid.
+ */
+function ownAccount(int $accountId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT a.* FROM accounts a JOIN spaces s ON s.id = a.space_id WHERE a.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$accountId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
 }

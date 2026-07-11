@@ -24,6 +24,16 @@
   box-sizing: border-box;
 }
 
+/* Jaminan global: elemen dgn atribut [hidden] (native, dipakai lewat JS
+   el.hidden = true/false) SELALU display:none, walau elemen itu juga punya
+   kelas yang set `display` eksplisit (mis. .sheet-overlay{display:flex},
+   .field{display:block}) -- tanpa ini specificity [hidden] (attribute, 0-1-0)
+   vs kelas (0-1-0) seri, dan author style menang krn urutan cascade lebih
+   belakang, jadi elemen "hidden" tetap tampil/menutupi & menelan klik. */
+[hidden] {
+  display: none !important;
+}
+
 html {
   background: var(--bg-page);
   /* overflow-x guard tinggal di html, bukan body (jangan macetkan scroll trackpad). */
@@ -435,4 +445,285 @@ button {
 .lm-toast.show {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* ---------- Akun (akun.php) ---------- */
+
+.acc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acc-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.acc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 14px 12px 14px 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.acc-card.is-archived {
+  opacity: 0.6;
+}
+
+.acc-icon {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--teal-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.acc-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acc-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acc-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.acc-type {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.acc-balance {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--teal-dark);
+  text-align: right;
+}
+
+.acc-menu-btn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.acc-menu-btn:active {
+  background: var(--bg-page);
+}
+
+/* Dropdown menu kartu (Edit / Arsipkan), diposisikan lewat JS (position:fixed
+   dekat tombol ⋮ yang diklik). */
+.acc-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  padding: 6px;
+}
+
+.acc-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.acc-menu-item:active {
+  background: var(--bg-page);
+}
+
+.acc-menu-item-danger {
+  color: var(--danger);
+}
+
+/* FAB flotasi tambah (dipakai halaman turunan seperti akun.php, di luar
+   bottom-nav yang punya nav-add sendiri untuk transaksi). */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--nav-height) + 20px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(31, 192, 203, 0.45);
+  cursor: pointer;
+  z-index: 25;
+}
+
+.fab:active {
+  background: var(--teal-dark);
+}
+
+/* Sheet form (tambah/edit akun) -- overlay + panel geser dari bawah, gaya
+   sama seperti .lm-overlay/.lm-dialog tapi kelas terpisah krn dipakai lewat
+   markup halaman sendiri (bukan dialog.js). */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 32, 0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 90;
+  transition: background 0.18s ease;
+}
+
+.sheet-overlay.show {
+  background: rgba(20, 30, 32, 0.42);
+}
+
+@media (min-width: 480px) {
+  .sheet-overlay {
+    align-items: center;
+  }
+}
+
+.sheet {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-card);
+  border-radius: 18px 18px 0 0;
+  padding: 22px 22px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.16);
+  transform: translateY(16px);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+@media (min-width: 480px) {
+  .sheet {
+    border-radius: 18px;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.sheet-overlay.show .sheet {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.sheet-title {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.field input,
+.field select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg-card);
+  font-family: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.sheet-msg {
+  min-height: 18px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-primary {
+  padding: 11px 20px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--teal);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary:active {
+  background: var(--teal-dark);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
