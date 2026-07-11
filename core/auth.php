@@ -26,11 +26,25 @@ function registerUser(string $name, string $email, string $pass): int
     }
 
     $hash = password_hash($pass, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)');
-    $stmt->execute([$name, $email, $hash]);
-    $userId = (int) $pdo->lastInsertId();
 
-    createSpaceWithDefaults($userId, 'Pribadi', 'personal');
+    // Satu transaksi untuk user + space + kategori seed: kalau salah satu
+    // gagal, semuanya batal -- jangan sampai ada user tanpa space (akun rusak
+    // permanen, currentSpaceId() akan selalu error).
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)');
+        $stmt->execute([$name, $email, $hash]);
+        $userId = (int) $pdo->lastInsertId();
+
+        createSpaceWithDefaults($userId, 'Pribadi', 'personal');
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     return $userId;
 }

@@ -101,6 +101,36 @@ $json = json_decode((string) $output, true);
 assertSame(false, $json['ok'] ?? null, 'percobaan ke-6 -> ok:false (rate limit)');
 assertSame(true, isset($json['error']) && str_contains($json['error'], 'banyak percobaan'), 'percobaan ke-6 -> pesan rate limit');
 
+// --- transaksi: createSpaceWithDefaults standalone (buka tx sendiri) ---------
+
+$spaceUsahaId = createSpaceWithDefaults($userId, 'Usaha Test', 'business');
+assertSame(false, $pdo->inTransaction(), 'createSpaceWithDefaults standalone tidak meninggalkan transaksi terbuka');
+$stmt = $pdo->prepare('SELECT COUNT(*) c FROM categories WHERE space_id = ?');
+$stmt->execute([$spaceUsahaId]);
+assertSame(14, (int) $stmt->fetch()['c'], 'space usaha standalone ter-commit dengan 14 kategori');
+
+// --- transaksi: rollback pemanggil membatalkan user + space + kategori -------
+// Simulasi persis jalur gagal registerUser: semua insert dalam satu transaksi
+// luar; rollback -> tidak boleh ada sisa user "yatim" tanpa space.
+
+$pdo->beginTransaction();
+$pdo->prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)')
+    ->execute(['TX Test', 'test+tx@ft.local', password_hash('x', PASSWORD_DEFAULT)]);
+$txUserId = (int) $pdo->lastInsertId();
+$txSpaceId = createSpaceWithDefaults($txUserId, 'Pribadi', 'personal');
+assertSame(true, $pdo->inTransaction(), 'createSpaceWithDefaults menumpang transaksi luar (tidak commit sendiri)');
+$pdo->rollBack();
+
+$stmt = $pdo->prepare('SELECT COUNT(*) c FROM users WHERE id = ?');
+$stmt->execute([$txUserId]);
+assertSame(0, (int) $stmt->fetch()['c'], 'rollback luar: user ikut batal (tidak ada user yatim)');
+$stmt = $pdo->prepare('SELECT COUNT(*) c FROM spaces WHERE id = ?');
+$stmt->execute([$txSpaceId]);
+assertSame(0, (int) $stmt->fetch()['c'], 'rollback luar: space ikut batal');
+$stmt = $pdo->prepare('SELECT COUNT(*) c FROM categories WHERE space_id = ?');
+$stmt->execute([$txSpaceId]);
+assertSame(0, (int) $stmt->fetch()['c'], 'rollback luar: kategori ikut batal');
+
 // --- cleanup ------------------------------------------------------------------
 
 cleanupTestAuth($testEmail);
