@@ -1,0 +1,436 @@
+/* Harpy FinTrack — shell UI: variabel, layout, header, bottom nav, dialog, toast.
+   Light theme saja. Aksen teal keluarga Harpy. Mobile-first, max-width 480px
+   centered di desktop. Tidak ada dependensi eksternal. */
+
+:root {
+  --teal: #1FC0CB;
+  --teal-dark: #16969F;
+  --teal-soft: #E4F8FA;
+  --bg-page: #F4F6F7;
+  --bg-card: #FFFFFF;
+  --text: #1B2528;
+  --text-muted: #66757B;
+  --border: #E3E8EA;
+  --danger: #E11D48;
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-nav: 0 -2px 12px rgba(0, 0, 0, 0.07);
+  --nav-height: 62px;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg-page);
+  /* overflow-x guard tinggal di html, bukan body (jangan macetkan scroll trackpad). */
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 480px;
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg-page);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.05);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* ---------- Header ---------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  background: var(--bg-page);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.space-switcher {
+  position: relative;
+}
+
+.space-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.space-btn svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.space-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  padding: 6px;
+  z-index: 30;
+}
+
+.space-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.space-item.active {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+
+.space-item:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.space-item .soon {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ---------- Main / kartu ---------- */
+
+.app-main {
+  padding: 4px 20px calc(var(--nav-height) + 28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.greet {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.greet-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.balance-label {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.balance-value {
+  margin: 6px 0 4px;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--teal-dark);
+}
+
+.balance-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Menu grid (lainnya.php) ---------- */
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+
+.menu-icon {
+  font-size: 22px;
+}
+
+.test-label {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.test-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-secondary {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-page);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Bottom nav ---------- */
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 480px;
+  height: var(--nav-height);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-nav);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 20;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nav-item.active {
+  color: var(--teal-dark);
+}
+
+.nav-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.nav-add {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(31, 192, 203, 0.45);
+}
+
+.nav-add:active {
+  background: var(--teal-dark);
+}
+
+/* ---------- Dialog custom (lmAlert/lmConfirm/lmPrompt) ---------- */
+
+.lm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 32, 0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  transition: background 0.18s ease;
+}
+
+.lm-overlay.show {
+  background: rgba(20, 30, 32, 0.42);
+}
+
+@media (min-width: 480px) {
+  .lm-overlay {
+    align-items: center;
+  }
+}
+
+.lm-dialog {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  border-radius: 18px 18px 0 0;
+  padding: 22px 22px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.16);
+  transform: translateY(16px);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+@media (min-width: 480px) {
+  .lm-dialog {
+    border-radius: 18px;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.lm-overlay.show .lm-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.lm-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.lm-msg {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.lm-input {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+}
+
+.lm-input:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.lm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.lm-btn {
+  padding: 11px 18px;
+  border: none;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lm-btn-ghost {
+  background: var(--bg-page);
+  color: var(--text);
+}
+
+.lm-btn-primary {
+  background: var(--teal);
+  color: #fff;
+}
+
+.lm-btn-primary:active {
+  background: var(--teal-dark);
+}
+
+/* ---------- Toast ---------- */
+
+.lm-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-height) + 16px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 8px);
+  max-width: 88%;
+  background: #24333A;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 18px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  z-index: 110;
+  text-align: center;
+}
+
+.lm-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
