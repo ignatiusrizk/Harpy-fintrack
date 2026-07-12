@@ -66,13 +66,20 @@ try {
         case 'confirm':
             csrf_check();
             $id = (int) post('id', 0);
-            apiOk(confirmRecurring($id));
+            // expected_next_run (opsional): UI mengirim next_run yg tampil di
+            // kartu due -- server menolak 409 kalau nilainya sudah bergeser
+            // (request duplikat), lihat confirmRecurring(). Kosong -> tanpa cek.
+            $expected = post('expected_next_run');
+            $expected = ($expected === null || $expected === '') ? null : (string) $expected;
+            apiOk(confirmRecurring($id, $expected));
             break;
 
         case 'skip':
             csrf_check();
             $id = (int) post('id', 0);
-            apiOk(skipRecurring($id));
+            $expected = post('expected_next_run');
+            $expected = ($expected === null || $expected === '') ? null : (string) $expected;
+            apiOk(skipRecurring($id, $expected));
             break;
 
         default:

@@ -348,6 +348,73 @@ $expectedSkipNext = advanceNextRun($yesterday, 'monthly', $today);
 assertSame($expectedSkipNext, $skipped['next_run'], 'skipRecurring: next_run maju sesuai advanceNextRun (anchor = anchor_date)');
 assertSame(true, $skipped['next_run'] > $today, 'skipRecurring: next_run monthly dari kemarin -> jelas lewat hari ini (tidak due lagi)');
 
+// ==================== skip: guard mode/aktif (sama dgn confirm) ====================
+
+// skip pada recurring mode AUTO aktif -> ditolak (tanpa guard ini, ?a=skip
+// langsung bisa diam-diam memajukan next_run recurring auto = menekan
+// transaksi yg seharusnya diposting pseudo-cron).
+$autoForSkip = createRecurring($spaceId, [
+    'account_id' => $accountId, 'category_id' => $makanId, 'type' => 'expense',
+    'amount' => 5000, 'note' => 'Auto skip-guard test', 'frequency' => 'monthly', 'mode' => 'auto',
+    'start_date' => $farFuture,
+]);
+$autoForSkipId = (int) $autoForSkip['id'];
+$json = runSub($sessAs($userId) . 'skipRecurring(' . var_export($autoForSkipId, true) . ');');
+assertSame(false, $json['ok'] ?? null, 'skipRecurring: recurring mode auto -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'pengingat'), 'skipRecurring: pesan sebut mode pengingat');
+$autoUnchanged = recurringRow($autoForSkipId);
+assertSame($farFuture, $autoUnchanged['next_run'], 'skipRecurring: next_run recurring auto TIDAK bergeser setelah ditolak');
+deleteRecurring($autoForSkipId);
+
+// skip pada recurring NONAKTIF -> ditolak. $skipId (reminder) dinonaktifkan dulu.
+toggleRecurring($skipId);
+$json = runSub($sessAs($userId) . 'skipRecurring(' . var_export($skipId, true) . ');');
+assertSame(false, $json['ok'] ?? null, 'skipRecurring: recurring nonaktif -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'tidak aktif'), 'skipRecurring: pesan sebut "tidak aktif"');
+toggleRecurring($skipId); // aktifkan lagi
+
+// ==================== confirm/skip: expected_next_run (idempoten dobel-klik) ====================
+
+$dupRec = createRecurring($spaceId, [
+    'account_id' => $accountId, 'category_id' => $gajiId, 'type' => 'income',
+    'amount' => 111000, 'note' => 'Dobel-klik test', 'frequency' => 'monthly', 'mode' => 'reminder',
+    'start_date' => $today,
+]);
+$dupId = (int) $dupRec['id'];
+$pdo->prepare('UPDATE recurrings SET next_run = ? WHERE id = ?')->execute([$yesterday, $dupId]);
+
+// Klik pertama: expected_next_run = nilai yg "tampil di kartu" (kemarin) -> sukses.
+$dup1 = confirmRecurring($dupId, $yesterday);
+assertSame(1, txCountFor($dupId), 'confirmRecurring(expected): klik pertama posting 1 transaksi');
+
+// Klik kedua (request duplikat dgn expected BASI yg sama): next_run baris
+// sudah maju -> ditolak 409, TIDAK ada posting kedua, next_run tidak bergeser lagi.
+$json = runSub($sessAs($userId) . 'confirmRecurring(' . var_export($dupId, true) . ', ' . var_export($yesterday, true) . ');');
+assertSame(false, $json['ok'] ?? null, 'confirmRecurring(expected basi): request duplikat -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'sudah dicatat'), 'confirmRecurring(expected basi): pesan sebut "sudah dicatat"');
+assertSame(1, txCountFor($dupId), 'confirmRecurring(expected basi): tetap 1 transaksi (tidak dobel-posting)');
+$dupRow = recurringRow($dupId);
+assertSame($dup1['next_run'], $dupRow['next_run'], 'confirmRecurring(expected basi): next_run tidak bergeser lagi');
+
+// skip dgn expected basi -> juga ditolak (dobel-tap Lewati tidak melompati 2 periode).
+$json = runSub($sessAs($userId) . 'skipRecurring(' . var_export($dupId, true) . ', ' . var_export($yesterday, true) . ');');
+assertSame(false, $json['ok'] ?? null, 'skipRecurring(expected basi): request duplikat -> ditolak');
+$dupRow = recurringRow($dupId);
+assertSame($dup1['next_run'], $dupRow['next_run'], 'skipRecurring(expected basi): next_run tidak bergeser');
+
+// skip dgn expected COCOK (nilai next_run sekarang) -> sukses maju 1 periode.
+$dupSkip = skipRecurring($dupId, $dup1['next_run']);
+assertSame(advanceNextRun($dup1['next_run'], 'monthly', $today), $dupSkip['next_run'], 'skipRecurring(expected cocok): maju 1 periode normal');
+assertSame(1, txCountFor($dupId), 'skipRecurring(expected cocok): tetap tanpa posting baru');
+
+// ==================== createRecurring: start_date kalender palsu ditolak ====================
+
+$json = runSub('createRecurring(' . var_export($spaceId, true) . ', ' . var_export([
+    'account_id' => $accountId, 'category_id' => $makanId, 'type' => 'expense',
+    'amount' => 10000, 'note' => '', 'frequency' => 'monthly', 'mode' => 'auto', 'start_date' => '2026-02-30',
+], true) . ');');
+assertSame(false, $json['ok'] ?? null, 'createRecurring: start_date 2026-02-30 (tanggal kalender palsu) -> ditolak');
+
 // ==================== runRecurringForUser: tidak menyentuh space user lain ====================
 
 // frequency 'weekly' (bukan 'daily') sengaja dipilih supaya "next_run =

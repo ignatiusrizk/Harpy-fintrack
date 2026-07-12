@@ -197,12 +197,16 @@ pageHeader('Recurring', $user);
     var skipBtn = document.createElement('button');
     skipBtn.type = 'button';
     skipBtn.textContent = 'Lewati';
-    skipBtn.addEventListener('click', function () { doSkip(row.id); });
     var confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = 'rc-due-confirm';
     confirmBtn.textContent = 'Catat';
-    confirmBtn.addEventListener('click', function () { doConfirm(row.id); });
+    // Kedua tombol di-disable selama request berjalan (pola sama dgn
+    // submitBtn di sheet) -- guard dobel-tap lapis UI. Server tetap punya
+    // guard sendiri (expected_next_run -> 409), ini murni lapisan pertama.
+    var btns = [skipBtn, confirmBtn];
+    skipBtn.addEventListener('click', function () { doSkip(row.id, row.next_run, btns); });
+    confirmBtn.addEventListener('click', function () { doConfirm(row.id, row.next_run, btns); });
     actions.appendChild(skipBtn);
     actions.appendChild(confirmBtn);
 
@@ -211,25 +215,39 @@ pageHeader('Recurring', $user);
     return card;
   }
 
-  async function doConfirm(id) {
+  function setDisabled(btns, disabled) {
+    btns.forEach(function (b) { b.disabled = disabled; });
+  }
+
+  async function doConfirm(id, expectedNextRun, btns) {
+    setDisabled(btns, true);
     try {
-      await api('api/recurring.php?a=confirm', { id: id });
+      // expected_next_run = next_run yg tampil di kartu -- server menolak 409
+      // kalau periode ini sudah dicatat/dilewati request lain (idempoten).
+      await api('api/recurring.php?a=confirm', { id: id, expected_next_run: expectedNextRun });
       toast('Transaksi tercatat');
       load();
     } catch (err) {
       toast(err.message);
+      load(); // sinkronkan tampilan dgn state server (mis. setelah 409)
+    } finally {
+      setDisabled(btns, false);
     }
   }
 
-  async function doSkip(id) {
+  async function doSkip(id, expectedNextRun, btns) {
     var ok = await lmConfirm('Lewati periode ini? Tidak ada transaksi yang dicatat.', 'Konfirmasi');
     if (!ok) return;
+    setDisabled(btns, true);
     try {
-      await api('api/recurring.php?a=skip', { id: id });
+      await api('api/recurring.php?a=skip', { id: id, expected_next_run: expectedNextRun });
       toast('Periode dilewati');
       load();
     } catch (err) {
       toast(err.message);
+      load(); // sinkronkan tampilan dgn state server (mis. setelah 409)
+    } finally {
+      setDisabled(btns, false);
     }
   }
 

@@ -141,7 +141,10 @@ function createRecurring(int $spaceId, array $data): array
 
     $startDate = trim((string) ($data['start_date'] ?? ''));
     $startDate = $startDate === '' ? date('Y-m-d') : $startDate;
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || strtotime($startDate) === false) {
+    // checkdate() (bukan cuma strtotime) supaya tanggal kalender palsu spt
+    // 2026-02-30 ditolak, bukan diam-diam digeser jadi 2 Mar oleh MySQL/PHP.
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $startDate, $m)
+        || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
         apiErr('Tanggal mulai tidak valid');
     }
 
@@ -258,8 +261,15 @@ function listRecurrings(int $spaceId): array
  * atau mode-nya bukan 'reminder' (auto-post ditangani pseudo-cron, bukan
  * endpoint ini). Lock baris (SELECT...FOR UPDATE dalam transaksi DB) supaya
  * dobel-klik/dobel-tab nyaris bersamaan tidak dobel-posting.
+ *
+ * $expectedNextRun (opsional, UI mengirim next_run yg TAMPIL di kartu due):
+ * setelah lock, kalau next_run baris sudah ≠ nilai itu (request duplikat --
+ * request pertama sudah posting & maju), tolak 409 dgn pesan jelas alih-alih
+ * diam-diam posting occurrence BERIKUTNYA. Ini yg membuat operasi idempoten
+ * sungguhan lintas tab/request, bukan cuma disable tombol di UI. null =
+ * tanpa cek (pemanggil yg memang mau occurrence terlama apa adanya).
  */
-function confirmRecurring(int $id): array
+function confirmRecurring(int $id, ?string $expectedNextRun = null): array
 {
     $existing = ownRecurring($id);
     if (!$existing['is_active']) {
@@ -283,6 +293,11 @@ function confirmRecurring(int $id): array
             // batalkan dgn pesan yg sama spt pengecekan di atas.
             $pdo->rollBack();
             apiErr('Recurring tidak bisa dikonfirmasi saat ini');
+        }
+
+        if ($expectedNextRun !== null && $r['next_run'] !== $expectedNextRun) {
+            $pdo->rollBack();
+            apiErr('Periode ini sudah dicatat atau dilewati sebelumnya', 409);
         }
 
         $tx = createTransaction((int) $r['space_id'], [
@@ -309,13 +324,23 @@ function confirmRecurring(int $id): array
 
 /**
  * Lewati 1 occurrence recurring $id TANPA posting transaksi -- next_run maju
- * spt biasa. Kepemilikan divalidasi via ownRecurring(). Lock baris spt
- * confirmRecurring() (konsistensi, walau resiko race jauh lebih kecil krn
- * tidak ada insert transaksi).
+ * spt biasa. Kepemilikan divalidasi via ownRecurring(). Guard SAMA dgn
+ * confirmRecurring(): hanya recurring AKTIF mode 'reminder' -- tanpa guard
+ * ini, ?a=skip langsung ke recurring 'auto' bisa diam-diam memajukan
+ * next_run (= menekan transaksi yg seharusnya diposting pseudo-cron).
+ * Lock baris spt confirmRecurring() (konsistensi), plus $expectedNextRun
+ * opsional dgn semantik yg sama (tolak 409 kalau next_run sudah bergeser --
+ * dobel-tap "Lewati" tidak melompati DUA periode).
  */
-function skipRecurring(int $id): array
+function skipRecurring(int $id, ?string $expectedNextRun = null): array
 {
     $existing = ownRecurring($id);
+    if (!$existing['is_active']) {
+        apiErr('Recurring tidak aktif');
+    }
+    if ($existing['mode'] !== 'reminder') {
+        apiErr('Hanya recurring mode pengingat yang bisa dilewati manual');
+    }
 
     $pdo = db();
     $pdo->beginTransaction();
@@ -323,9 +348,14 @@ function skipRecurring(int $id): array
         $stmt = $pdo->prepare('SELECT * FROM recurrings WHERE id = ? FOR UPDATE');
         $stmt->execute([$id]);
         $r = $stmt->fetch();
-        if ($r === false) {
+        if ($r === false || !$r['is_active'] || $r['mode'] !== 'reminder') {
             $pdo->rollBack();
-            apiErr('Tidak ditemukan', 404);
+            apiErr('Recurring tidak bisa dilewati saat ini');
+        }
+
+        if ($expectedNextRun !== null && $r['next_run'] !== $expectedNextRun) {
+            $pdo->rollBack();
+            apiErr('Periode ini sudah dicatat atau dilewati sebelumnya', 409);
         }
 
         $nextRun = advanceNextRun($r['next_run'], $r['frequency'], $r['anchor_date']);
