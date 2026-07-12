@@ -115,22 +115,31 @@ function txValidate(int $spaceId, array $data): array
 /**
  * Buat transaksi baru di $spaceId (dipercaya dari pemanggil, mis.
  * currentSpaceId() sesi). Return row hasil (id + field ternormalisasi).
+ *
+ * $data['recurring_id'] opsional -- dipakai HANYA oleh core/recurring.php
+ * (pseudo-cron auto-post & confirm) utk menandai transaksi ini hasil posting
+ * recurring tertentu. Endpoint API (public/api/transaksi.php) tidak pernah
+ * mengisi key ini dari input klien -- txReadInput() tidak membaca
+ * 'recurring_id' dari post(), jadi klien tidak bisa memalsukan tautan ke
+ * recurring milik orang lain lewat endpoint transaksi biasa.
  */
 function createTransaction(int $spaceId, array $data): array
 {
     $v = txValidate($spaceId, $data);
 
+    $recurringId = !empty($data['recurring_id']) ? (int) $data['recurring_id'] : null;
+
     $stmt = db()->prepare(
-        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $spaceId, $v['account_id'], $v['category_id'], $v['type'],
-        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'],
+        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId,
     ]);
     $id = (int) db()->lastInsertId();
 
-    return array_merge(['id' => $id, 'space_id' => $spaceId], $v);
+    return array_merge(['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId], $v);
 }
 
 /**

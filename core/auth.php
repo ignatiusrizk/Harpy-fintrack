@@ -5,6 +5,14 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/seed.php';
+// requireLogin() di bawah manggil runRecurringForUser() (pseudo-cron) di
+// SETIAP halaman terproteksi -- bukan cuma public/recurring.php. Kalau
+// core/recurring.php cuma di-require_once oleh halaman itu sendiri, hook di
+// requireLogin() tidak akan pernah nyala di halaman lain (mis. index.php,
+// transaksi.php) krn function_exists('runRecurringForUser') masih false di
+// sana. Require langsung di sini supaya fungsinya SELALU tersedia di semua
+// halaman yg memanggil requireLogin() (auth.php di-require di semua halaman).
+require_once __DIR__ . '/recurring.php';
 
 const FT_REMEMBER_COOKIE = 'ft_remember';
 const FT_REMEMBER_DAYS = 30;
@@ -226,10 +234,23 @@ function resolveLoggedInUser(): ?array
     return $user;
 }
 
+// Throttle pseudo-cron recurring: maks 1x per sekian detik PER SESI (bukan
+// per user/global) -- cukup utk menghindari query berulang tiap kali user
+// reload halaman berkali-kali dalam waktu singkat. runRecurringForUser()
+// sendiri sudah scoped & idempoten (lihat core/recurring.php), throttle ini
+// murni soal biaya query per page load, bukan soal korektnes.
+const FT_RECURRING_THROTTLE_SECONDS = 15 * 60;
+
 /**
  * Guard halaman: return user row kalau login (termasuk auto-login via
- * remember-me), redirect ke login.php kalau tidak. Jalankan pseudo-cron hook
- * kalau tersedia (runPseudoCron() didefinisikan task lain).
+ * remember-me), redirect ke login.php kalau tidak. Jalankan pseudo-cron
+ * recurring (runRecurringForUser() dari core/recurring.php, di-require
+ * langsung di atas jadi SELALU tersedia) di sini -- HANYA di halaman, bukan
+ * API (requireLoginApi() di bawah SENGAJA tidak memanggil ini, supaya
+ * request AJAX beruntun tidak ikut trigger cron berulang-ulang). Throttle
+ * maks 1x/15 menit per sesi via $_SESSION['last_recurring_run'].
+ * function_exists() dipertahankan sbg guard defensif (bukan krn fungsinya
+ * pernah tidak ada di jalur normal).
  */
 function requireLogin(): array
 {
@@ -241,8 +262,13 @@ function requireLogin(): array
 
     header('Cache-Control: no-store');
 
-    if (function_exists('runPseudoCron')) {
-        runPseudoCron((int) $user['id']);
+    if (function_exists('runRecurringForUser')) {
+        $now = time();
+        $last = (int) ($_SESSION['last_recurring_run'] ?? 0);
+        if ($now - $last >= FT_RECURRING_THROTTLE_SECONDS) {
+            $_SESSION['last_recurring_run'] = $now;
+            runRecurringForUser((int) $user['id']);
+        }
     }
 
     return $user;
@@ -250,7 +276,10 @@ function requireLogin(): array
 
 /**
  * Guard endpoint API: return user row kalau login, JSON 401 (apiErr) kalau
- * tidak -- menghentikan eksekusi.
+ * tidak -- menghentikan eksekusi. TIDAK menjalankan pseudo-cron recurring
+ * (lihat requireLogin()) -- endpoint API dipanggil berkali-kali per halaman
+ * (list akun, kategori, dst.), menjalankan cron di tiap panggilan itu boros
+ * & tidak perlu.
  */
 function requireLoginApi(): array
 {
@@ -260,10 +289,6 @@ function requireLoginApi(): array
     }
 
     header('Cache-Control: no-store');
-
-    if (function_exists('runPseudoCron')) {
-        runPseudoCron((int) $user['id']);
-    }
 
     return $user;
 }

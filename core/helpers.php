@@ -233,3 +233,24 @@ function ownTransaction(int $transactionId): array
     }
     return $row;
 }
+
+/**
+ * Validasi kepemilikan recurring: rantai recurring -> ruang -> user_id di
+ * session. Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan
+ * eksekusi). Return row recurring lengkap kalau valid.
+ */
+function ownRecurring(int $recurringId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT r.* FROM recurrings r JOIN spaces s ON s.id = r.space_id WHERE r.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$recurringId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
