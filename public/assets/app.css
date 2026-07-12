@@ -1553,3 +1553,133 @@ button {
   font-weight: 700;
   color: var(--text-muted);
 }
+
+/* Halaman Goals (public/goals.php): kartu progress per goal + seksi "Selesai"
+   collapsed + sheet tambah/edit & sheet setor/tarik. */
+
+.gl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gl-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+  cursor: pointer;
+}
+
+.gl-card.is-done {
+  opacity: .65;
+}
+
+.gl-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gl-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gl-pct {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal-dark);
+}
+
+.gl-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.gl-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--teal);
+  transition: width 0.2s ease;
+}
+
+.gl-card.is-done .gl-progress-bar {
+  background: var(--success);
+}
+
+.gl-amounts {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gl-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gl-meta-overdue {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.gl-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.gl-actions button {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.gl-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.gl-done-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 20px 0 10px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+
+.gl-done-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.gl-done-toggle.open svg {
+  transform: rotate(180deg);
+}
+
+.gl-tx-hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

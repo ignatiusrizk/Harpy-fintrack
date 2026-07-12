@@ -43,6 +43,21 @@ function txCategoryInSpace(int $categoryId, int $spaceId): array
 }
 
 /**
+ * Pastikan goal ada & milik $spaceId. Dipakai HANYA saat $data['goal_id']
+ * diisi oleh pemanggil tepercaya (core/goals.php) di createTransaction --
+ * endpoint transaksi biasa (public/api/transaksi.php) tidak pernah mengisi
+ * key ini dari input klien, sama pola dgn recurring_id. Gagal -> apiErr 404.
+ */
+function txGoalInSpace(int $goalId, int $spaceId): void
+{
+    $stmt = db()->prepare('SELECT id FROM goals WHERE id = ? AND space_id = ?');
+    $stmt->execute([$goalId, $spaceId]);
+    if ($stmt->fetch() === false) {
+        apiErr('Goal tidak ditemukan', 404);
+    }
+}
+
+/**
  * Validasi & normalisasi input transaksi (dipakai bareng create & update).
  * Aturan: amount > 0; income/expense wajib category_id milik space & type
  * cocok; transfer wajib to_account_id != account_id, keduanya milik
@@ -118,10 +133,13 @@ function txValidate(int $spaceId, array $data): array
  *
  * $data['recurring_id'] opsional -- dipakai HANYA oleh core/recurring.php
  * (pseudo-cron auto-post & confirm) utk menandai transaksi ini hasil posting
- * recurring tertentu. Endpoint API (public/api/transaksi.php) tidak pernah
- * mengisi key ini dari input klien -- txReadInput() tidak membaca
- * 'recurring_id' dari post(), jadi klien tidak bisa memalsukan tautan ke
- * recurring milik orang lain lewat endpoint transaksi biasa.
+ * recurring tertentu. $data['goal_id'] opsional -- dipakai HANYA oleh
+ * core/goals.php (deposit/withdraw) utk menautkan transaksi ini ke goal
+ * tertentu, divalidasi milik $spaceId via txGoalInSpace(). Endpoint API
+ * (public/api/transaksi.php) tidak pernah mengisi kedua key ini dari input
+ * klien -- txReadInput() tidak membacanya dari post(), jadi klien tidak bisa
+ * memalsukan tautan ke recurring/goal milik orang lain lewat endpoint
+ * transaksi biasa.
  */
 function createTransaction(int $spaceId, array $data): array
 {
@@ -129,17 +147,22 @@ function createTransaction(int $spaceId, array $data): array
 
     $recurringId = !empty($data['recurring_id']) ? (int) $data['recurring_id'] : null;
 
+    $goalId = !empty($data['goal_id']) ? (int) $data['goal_id'] : null;
+    if ($goalId !== null) {
+        txGoalInSpace($goalId, $spaceId);
+    }
+
     $stmt = db()->prepare(
-        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id, goal_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $spaceId, $v['account_id'], $v['category_id'], $v['type'],
-        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId,
+        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId, $goalId,
     ]);
     $id = (int) db()->lastInsertId();
 
-    return array_merge(['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId], $v);
+    return array_merge(['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId, 'goal_id' => $goalId], $v);
 }
 
 /**

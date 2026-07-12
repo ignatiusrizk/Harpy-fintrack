@@ -254,3 +254,25 @@ function ownRecurring(int $recurringId): array
     }
     return $row;
 }
+
+/**
+ * Validasi kepemilikan goal: rantai goal -> ruang -> user_id di session.
+ * Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan eksekusi).
+ * Return row goal (id, space_id, name, target_amount, target_date, is_done)
+ * kalau valid.
+ */
+function ownGoal(int $goalId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT g.* FROM goals g JOIN spaces s ON s.id = g.space_id WHERE g.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$goalId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
