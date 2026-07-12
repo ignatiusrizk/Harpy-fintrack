@@ -1683,3 +1683,298 @@ button {
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* ---------- Halaman Investasi (public/investasi.php, Task 9) ----------
+   Kartu total + donut SVG alokasi (manual, tanpa lib) + legend, list aset,
+   sheet detail (posisi + aksi + riwayat), sheet tambah/edit aset, sheet
+   beli/jual, sheet update harga. */
+
+.pt-positive {
+  color: var(--success);
+}
+
+.pt-negative {
+  color: var(--danger);
+}
+
+.pt-total-gain {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pt-alloc-card {
+  margin-top: 16px;
+}
+
+.pt-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.pt-donut-svg-holder {
+  flex: none;
+  width: 120px;
+}
+
+.pt-donut-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.pt-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pt-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pt-legend-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.pt-legend-label {
+  flex: 1;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-legend-pct {
+  flex: none;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pt-asset-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.pt-asset-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.pt-asset-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-asset-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-asset-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pt-asset-right {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.pt-asset-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pt-asset-gain {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pt-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.pt-detail-sheet {
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.pt-detail-sub {
+  margin: -10px 0 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pt-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pt-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-page);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+}
+
+.pt-stat span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.pt-stat strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pt-detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pt-detail-actions button {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+
+.pt-hist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pt-hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pt-hist-side {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.pt-hist-buy {
+  background: var(--success);
+}
+
+.pt-hist-sell {
+  background: var(--danger);
+}
+
+.pt-hist-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pt-hist-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pt-hist-del {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pt-hist-del:active {
+  background: var(--bg-page);
+}
+
+.pt-hist-empty {
+  margin: 8px 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pt-detail-footer {
+  margin-top: 6px;
+}
+
+.pt-trade-hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Sheet aset/beli-jual/update-harga bisa dibuka DI ATAS sheet detail yg
+   masih terbuka (mis. tap "Edit Aset"/"Beli" dari dalam sheet detail) --
+   ketiganya HARUS selalu mengambang di atas #ptDetailSheetOverlay walau
+   urutan DOM-nya lebih dulu (stacking .sheet-overlay generik sama-sama
+   z-index:90, jadi menang urutan DOM bukan urutan dibuka -- override
+   spesifik di sini via selector ID, lebih spesifik drpd .sheet-overlay). */
+#ptAssetSheetOverlay,
+#ptTradeSheetOverlay,
+#ptPriceSheetOverlay {
+  z-index: 95;
+}

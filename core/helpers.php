@@ -276,3 +276,25 @@ function ownGoal(int $goalId): array
     }
     return $row;
 }
+
+/**
+ * Validasi kepemilikan aset investasi: rantai asset -> ruang -> user_id di
+ * session. Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan
+ * eksekusi). Return row asset (id, space_id, name, type, code, unit_label)
+ * kalau valid. Pola sama persis dgn ownAccount() (core/portfolio.php, Task 9).
+ */
+function ownAsset(int $assetId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT a.* FROM assets a JOIN spaces s ON s.id = a.space_id WHERE a.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$assetId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}

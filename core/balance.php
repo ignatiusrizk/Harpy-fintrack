@@ -4,6 +4,12 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
+// portfolioValue() (Task 9) di-require_once di sini (bukan cuma di halaman
+// investasi) supaya netWorth() di bawah SELALU menyertakannya lewat
+// function_exists() hook -- kapanpun/di manapun balance.php di-require,
+// portfolio.php ikut, sama spt core/auth.php me-require_once recurring.php
+// utk hook pseudo-cron-nya.
+require_once __DIR__ . '/portfolio.php';
 
 /**
  * Saldo satu akun (on-the-fly, bukan kolom tersimpan). Akun tidak ditemukan -> 0.0.

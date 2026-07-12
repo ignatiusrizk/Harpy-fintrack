@@ -74,10 +74,16 @@ assertSame('Bank', $balances[$accountB]['name'] ?? null, 'spaceBalances B name c
 assertSame('bank', $balances[$accountB]['type'] ?? null, 'spaceBalances B type cocok');
 assertSame(30000.0, $balances[$accountB]['balance'] ?? null, 'spaceBalances B balance cocok');
 
-// --- netWorth: sum akun space personal user (belum ada portfolioValue) ----
+// --- netWorth: sum akun space personal user + portfolioValue (Task 9) ----
 
-assertSame(false, function_exists('portfolioValue'), 'portfolioValue belum ada (Task 9) -- netWorth hanya akun');
-assertSame(130000.0, netWorth($userId), 'netWorth = 100rb + 30rb = 130rb');
+// core/balance.php sekarang require_once core/portfolio.php (Task 9) --
+// portfolioValue() SELALU ada begitu balance.php dimuat. User test ini belum
+// punya aset investasi sama sekali, jadi portfolioValue() = 0 & netWorth
+// tidak berubah dari sebelum Task 9. Skenario "netWorth naik setelah
+// beli+set_price" dites khusus di tests/test_portfolio.php.
+assertSame(true, function_exists('portfolioValue'), 'portfolioValue ada (Task 9, via require_once core/balance.php)');
+assertSame(0.0, portfolioValue($userId), 'portfolioValue user tanpa aset = 0');
+assertSame(130000.0, netWorth($userId), 'netWorth = 100rb + 30rb (tanpa aset investasi)');
 
 // --- ownSpace / ownAccount: kepemilikan -----------------------------------
 
