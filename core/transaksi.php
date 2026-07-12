@@ -10,6 +10,11 @@ require_once __DIR__ . '/helpers.php';
 
 const TX_TYPES = ['income', 'expense', 'transfer'];
 const TX_PER_PAGE = 50;
+// Batas wajar hasil export.php (public/export.php) -- CSV dgn puluhan ribu
+// baris tetap terkirim (tidak reject total), tapi dipotong & diberi catatan
+// di baris terakhir (lihat txListForExport()) drpd memori/response membengkak
+// tak terbatas kalau user filter rentang tanggal sangat luas.
+const TX_EXPORT_LIMIT = 10000;
 
 /**
  * Pastikan akun ada & benar-benar milik $spaceId (bukan sekadar milik user --
@@ -199,13 +204,14 @@ function deleteTransaction(int $id): void
 }
 
 /**
- * List transaksi $spaceId dgn filter opsional (from,to DATE; account_id;
- * category_id; type; q LIKE note; page 1-based, TX_PER_PAGE/hal). Return
- * ['rows'=>..., 'total_rows'=>int, 'total_income'=>float, 'total_expense'=>float]
- * -- agregat & total_rows dihitung atas SELURUH hasil filter (bukan cuma
- * halaman aktif). account_id cocok baik sbg sumber maupun tujuan transfer.
+ * Bangun klausa WHERE + params filter transaksi $spaceId (from,to DATE;
+ * account_id -- cocok baik sbg sumber maupun tujuan transfer; category_id;
+ * type; q LIKE note). Dipakai bareng oleh listTransactions() (halaman
+ * transaksi, terpaginasi) & txListForExport() (export.php, tidak
+ * terpaginasi) -- SATU sumber aturan filter supaya keduanya selalu
+ * konsisten. Return [whereSql, params].
  */
-function listTransactions(int $spaceId, array $filters): array
+function txBuildWhere(int $spaceId, array $filters): array
 {
     $where = ['t.space_id = ?'];
     $params = [$spaceId];
@@ -236,7 +242,19 @@ function listTransactions(int $spaceId, array $filters): array
         $params[] = '%' . $filters['q'] . '%';
     }
 
-    $whereSql = implode(' AND ', $where);
+    return [implode(' AND ', $where), $params];
+}
+
+/**
+ * List transaksi $spaceId dgn filter opsional (lihat txBuildWhere(); page
+ * 1-based, TX_PER_PAGE/hal). Return
+ * ['rows'=>..., 'total_rows'=>int, 'total_income'=>float, 'total_expense'=>float]
+ * -- agregat & total_rows dihitung atas SELURUH hasil filter (bukan cuma
+ * halaman aktif).
+ */
+function listTransactions(int $spaceId, array $filters): array
+{
+    [$whereSql, $params] = txBuildWhere($spaceId, $filters);
     $pdo = db();
 
     $aggStmt = $pdo->prepare(
@@ -276,4 +294,45 @@ function listTransactions(int $spaceId, array $filters): array
         'total_income' => (float) $agg['total_income'],
         'total_expense' => (float) $agg['total_expense'],
     ];
+}
+
+/**
+ * List transaksi $spaceId dgn filter SAMA persis dgn listTransactions()
+ * (lewat txBuildWhere() bareng, jadi aturan filter selalu konsisten) TAPI
+ * TANPA pagination -- dipakai public/export.php (CSV, butuh seluruh baris
+ * cocok filter sekaligus, bukan per-halaman). Dibatasi $limit baris
+ * terbaru dulu (ORDER BY tx_date DESC, id DESC, sama spt listTransactions())
+ * -- query minta $limit+1 baris supaya bisa tahu apakah hasil SEBENARNYA
+ * lebih banyak dari $limit tanpa query COUNT(*) terpisah; baris ke-(limit+1)
+ * dibuang, bukan bagian data. Return ['rows'=>..., 'truncated'=>bool].
+ */
+function txListForExport(int $spaceId, array $filters, int $limit = TX_EXPORT_LIMIT): array
+{
+    [$whereSql, $params] = txBuildWhere($spaceId, $filters);
+    $limit = max(1, $limit);
+    $pdo = db();
+
+    // Limit diinterpolasi langsung (bukan parameter binding) -- sama alasan
+    // spt listTransactions(): sudah dipaksa int di atas & aman dari injeksi.
+    $rowStmt = $pdo->prepare(
+        "SELECT t.*, a.name account_name, a.type account_type,
+                c.name category_name, c.icon category_icon, c.color category_color,
+                ta.name to_account_name
+         FROM transactions t
+         JOIN accounts a ON a.id = t.account_id
+         LEFT JOIN categories c ON c.id = t.category_id
+         LEFT JOIN accounts ta ON ta.id = t.to_account_id
+         WHERE {$whereSql}
+         ORDER BY t.tx_date DESC, t.id DESC
+         LIMIT " . ($limit + 1)
+    );
+    $rowStmt->execute($params);
+    $rows = $rowStmt->fetchAll();
+
+    $truncated = count($rows) > $limit;
+    if ($truncated) {
+        $rows = array_slice($rows, 0, $limit);
+    }
+
+    return ['rows' => $rows, 'truncated' => $truncated];
 }

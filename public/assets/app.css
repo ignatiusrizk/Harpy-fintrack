@@ -2144,3 +2144,176 @@ button {
   height: auto;
   display: block;
 }
+
+/* Halaman Laporan (public/laporan.php): kartu Total (Pemasukan/Pengeluaran/
+   Selisih, atau Pendapatan/Beban/Laba Bersih di tab Laba-Rugi), seksi Per
+   Kategori (reuse .bg-list/.bg-row/.bg-icon/.bg-body/.bg-row-top/.bg-name/
+   .bg-amounts dari budget.php -- collapsible parent->anak lewat
+   .lp-children), seksi Per Akun (tabel kecil, dibungkus .lp-akun-table-wrap
+   overflow-x:auto -- wajib, tabel 4 kolom bisa overflow di layar sempit). */
+
+.lp-total-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lp-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lp-total-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lp-total-income {
+  color: var(--success);
+}
+
+.lp-total-expense {
+  color: var(--danger);
+}
+
+.lp-total-net-row {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.lp-net-value {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.lp-net-value.lp-net-pos {
+  color: var(--teal-dark);
+}
+
+.lp-net-value.lp-net-neg {
+  color: var(--danger);
+}
+
+.lp-export-btn {
+  display: block;
+  width: 100%;
+  margin: 14px 0;
+}
+
+.lp-cat-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.bg-list .lp-cat-item:last-child {
+  border-bottom: none;
+}
+
+.lp-cat-item .bg-row {
+  border-bottom: none;
+}
+
+.lp-row-parent {
+  cursor: pointer;
+}
+
+.lp-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lp-chevron {
+  flex: none;
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: transform 0.15s ease;
+}
+
+.lp-chevron-open {
+  transform: rotate(90deg);
+}
+
+.lp-children {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 8px 62px;
+  gap: 6px;
+}
+
+.lp-child-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.lp-child-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-child-amount {
+  flex: none;
+  font-weight: 600;
+}
+
+.lp-akun-table-wrap {
+  overflow-x: auto;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.lp-akun-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.lp-akun-table th,
+.lp-akun-table td {
+  padding: 10px 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lp-akun-table th:first-child,
+.lp-akun-table td:first-child {
+  text-align: left;
+}
+
+.lp-akun-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.lp-akun-table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border);
+}
+
+.lp-akun-in {
+  color: var(--success);
+}
+
+.lp-akun-out {
+  color: var(--danger);
+}
+
+.lp-akun-net-pos {
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
+.lp-akun-net-neg {
+  color: var(--danger);
+  font-weight: 700;
+}
