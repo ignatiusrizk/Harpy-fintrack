@@ -84,7 +84,7 @@ function pageFooter(string $active): void
     <span class="nav-icon">📒</span>
     <span class="nav-label">Transaksi</span>
   </a>
-  <a href="transaksi.php" class="nav-add" aria-label="Tambah transaksi">+</a>
+  <a href="transaksi.php?add=1" class="nav-add" aria-label="Tambah transaksi">+</a>
   <a href="budget.php" class="nav-item<?= $active === 'budget' ? ' active' : '' ?>">
     <span class="nav-icon">🎯</span>
     <span class="nav-label">Budget</span>

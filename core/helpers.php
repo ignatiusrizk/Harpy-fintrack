@@ -190,3 +190,46 @@ function ownAccount(int $accountId): array
     }
     return $row;
 }
+
+/**
+ * Validasi kepemilikan kategori: rantai kategori -> ruang -> user_id di
+ * session. Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan
+ * eksekusi). Return row kategori (id, space_id, name, type, icon, color,
+ * parent_id) kalau valid.
+ */
+function ownCategory(int $categoryId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT c.* FROM categories c JOIN spaces s ON s.id = c.space_id WHERE c.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$categoryId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
+
+/**
+ * Validasi kepemilikan transaksi: rantai transaksi -> ruang -> user_id di
+ * session. Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan
+ * eksekusi). Return row transaksi lengkap kalau valid.
+ */
+function ownTransaction(int $transactionId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT t.* FROM transactions t JOIN spaces s ON s.id = t.space_id WHERE t.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$transactionId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
