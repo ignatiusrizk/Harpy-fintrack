@@ -227,12 +227,18 @@ pageHeader('Budget', $user);
   });
 
   copyBtn.addEventListener('click', async function () {
+    // Guard dobel-tap: disable selama request berjalan (server sudah
+    // idempoten -- INSERT..SELECT..ODKU no-op -- ini cuma mencegah dua
+    // request & dua toast beruntun).
+    copyBtn.disabled = true;
     try {
       var json = await api('api/budget.php?a=copy_prev', { period: state.period });
       toast(json.copied > 0 ? 'Tersalin ' + json.copied + ' anggaran dari bulan lalu' : 'Tidak ada anggaran bulan lalu utk disalin');
       load();
     } catch (err) {
       toast(err.message);
+    } finally {
+      copyBtn.disabled = false;
     }
   });
 

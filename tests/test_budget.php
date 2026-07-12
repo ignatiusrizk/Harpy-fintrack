@@ -206,6 +206,22 @@ $belanjaStatus = findStatus($status, $belanjaId);
 assertSame(500000.0, $makanStatus !== null ? (float) $makanStatus['amount'] : null, 'copyPrevBudgets: budget Makan & Minum period ini TIDAK tertimpa (tetap 500rb, bukan 300rb dari bulan lalu)');
 assertSame(150000.0, $belanjaStatus !== null ? (float) $belanjaStatus['amount'] : null, 'copyPrevBudgets: Belanja tersalin dgn amount 150rb dari bulan lalu');
 
+// Idempoten (skenario dobel-tap tombol "Salin"): panggilan kedua berturut-
+// turut tidak throw (semua baris sudah ada -> ODKU no-op), return 0, dan
+// tidak menimpa/menambah baris.
+$copiedAgain = copyPrevBudgets($spaceId, $period);
+assertSame(0, $copiedAgain, 'copyPrevBudgets: panggilan kedua idempoten -- 0 baris tersalin, tanpa exception');
+
+$status = budgetStatus($spaceId, $period);
+$makanStatus = findStatus($status, $makanId);
+$belanjaStatus = findStatus($status, $belanjaId);
+assertSame(500000.0, $makanStatus !== null ? (float) $makanStatus['amount'] : null, 'copyPrevBudgets: panggilan kedua tetap tidak menimpa Makan & Minum (500rb)');
+assertSame(150000.0, $belanjaStatus !== null ? (float) $belanjaStatus['amount'] : null, 'copyPrevBudgets: panggilan kedua tetap tidak mengubah Belanja (150rb)');
+
+$stmt = $pdo->prepare('SELECT COUNT(*) c FROM budgets WHERE space_id = ? AND period = ?');
+$stmt->execute([$spaceId, $period]);
+assertSame(2, (int) $stmt->fetch()['c'], 'copyPrevBudgets: panggilan kedua tidak menambah baris duplikat (tetap 2 baris di period ini)');
+
 $json = runSub('copyPrevBudgets(' . var_export($spaceId, true) . ', "salah");');
 assertSame(false, $json['ok'] ?? null, 'copyPrevBudgets: period tidak valid -> ditolak');
 

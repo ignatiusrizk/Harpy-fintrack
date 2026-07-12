@@ -191,29 +191,29 @@ function setBudget(int $spaceId, int $categoryId, string $period, $amountRaw): a
  * Salin semua baris budget $spaceId dari period SEBELUM $period ke $period.
  * Kategori yg di $period sudah punya baris budget DI-SKIP (tidak ditimpa).
  * Return jumlah baris yang benar-benar tersalin.
+ *
+ * Atomik & idempoten: satu INSERT ... SELECT dgn ON DUPLICATE KEY UPDATE
+ * no-op (amount = budgets.amount) -- bukan loop check-then-insert per baris,
+ * yg bisa race saat dua request paralel (dobel-tap tombol "Salin"): keduanya
+ * lolos cek COUNT utk kategori sama, insert kedua kena UNIQUE -> exception di
+ * tengah loop padahal sebagian baris sudah ter-copy. Dgn no-op update,
+ * baris duplikat = 0 affected rows di MySQL/MariaDB, jadi rowCount() =
+ * jumlah baris yg benar-benar baru tersalin (panggilan kedua return 0).
  */
 function copyPrevBudgets(int $spaceId, string $period): int
 {
     bgValidatePeriod($period);
     $prevPeriod = date('Y-m', strtotime($period . '-01 -1 month'));
 
-    $pdo = db();
-    $stmt = $pdo->prepare('SELECT category_id, amount FROM budgets WHERE space_id = ? AND period = ?');
-    $stmt->execute([$spaceId, $prevPeriod]);
-    $prevBudgets = $stmt->fetchAll();
+    // Sumber SELECT di-alias (prev) supaya `budgets.amount` di klausa ON
+    // DUPLICATE tidak ambigu dgn tabel sumber (tabel yg sama).
+    $stmt = db()->prepare(
+        'INSERT INTO budgets (space_id, category_id, period, amount)
+         SELECT prev.space_id, prev.category_id, ?, prev.amount
+         FROM budgets prev WHERE prev.space_id = ? AND prev.period = ?
+         ON DUPLICATE KEY UPDATE amount = budgets.amount'
+    );
+    $stmt->execute([$period, $spaceId, $prevPeriod]);
 
-    $checkStmt = $pdo->prepare('SELECT COUNT(*) c FROM budgets WHERE space_id = ? AND category_id = ? AND period = ?');
-    $insStmt = $pdo->prepare('INSERT INTO budgets (space_id, category_id, period, amount) VALUES (?, ?, ?, ?)');
-
-    $copied = 0;
-    foreach ($prevBudgets as $b) {
-        $checkStmt->execute([$spaceId, $b['category_id'], $period]);
-        if ((int) $checkStmt->fetch()['c'] > 0) {
-            continue; // sudah ada budget di period ini -> skip, jangan timpa
-        }
-        $insStmt->execute([$spaceId, $b['category_id'], $period, $b['amount']]);
-        $copied++;
-    }
-
-    return $copied;
+    return $stmt->rowCount();
 }
