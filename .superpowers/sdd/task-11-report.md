@@ -94,3 +94,35 @@ limit+1-trick). `php tests/run.php` → **SEMUA PASS** (10 file).
   `=+-@`) ditambahkan proaktif saat self-review — bukan diminta eksplisit
   di brief, tapi relevan krn kolom catatan/kategori/akun berasal dari
   input bebas teks user & diexport apa adanya.
+
+## Fix pasca-review (1 Important + 1 Minor)
+
+**Important — kolom jumlah CSV desimal titik vs Excel locale Indonesia.**
+`txToCsvFields()` (core/laporan.php) semula `sprintf('%.2f')` →
+`500000.00`; Excel-ID (list separator `;`, desimal koma) membaca itu sbg
+TEKS, padahal delimiter `;` dipilih justru utk locale itu. Fix:
+`number_format((float)$amount, 2, ',', '')` → `500000,00` (desimal koma
+TANPA pemisah ribuan — koma di dalam field aman krn pemisah kolom `;`).
+4 assert CSV di `tests/test_laporan.php` diupdate dari titik ke koma.
+
+**Minor — tab Laba-Rugi hanya bulanan di UI padahal `laporanPnl()` sudah
+support tahunan (param `YYYY`, sudah dites).** Ditambah sub-toggle
+segmented kecil Bulanan|Tahunan (`#lpPnlMode`, hanya dirender utk space
+business & hanya tampil saat tab Laba-Rugi aktif). Refactor kecil di JS:
+helper `isYearlyView()` (true utk tab Tahunan ATAU pnl mode tahunan)
+dipakai bareng oleh label periode, arah chevron (geser tahun vs bulan),
+rentang Export CSV, dan payload API (`{year}` vs `{period}` — `?a=pnl`
+memang menerima salah satu). CSS `.lp-pnl-mode` = versi mengecil dari
+`.segmented`.
+
+**Verifikasi:** `php tests/test_laporan.php` → semua ✓ (assert koma);
+full `php tests/run.php` → SEMUA PASS (10 file). Smoke gstack ulang
+(user `smoke+laporan@ft.local` baru, space business via edit session spt
+sebelumnya, transaksi usaha di 2 bulan berbeda): tab Laba-Rugi → sub-toggle
+muncul, mode Bulanan net Rp200.000; mode Tahunan → label "2026", Pendapatan
+Rp450.000 (300rb Jul + 150rb Jan) − Beban Rp100.000 = Laba Bersih Rp350.000
+(≠ bulanan, membuktikan param year benar-benar terkirim); chevron di mode
+tahunan menggeser TAHUN (2025 → net Rp0 → balik 2026); pindah ke tab
+Bulanan utama → sub-toggle tersembunyi; console bersih. Export CSV via curl
+cookie sesi nyata → kolom jumlah `100000,00` / `300000,00` / `150000,00`
+(koma). Data uji dibersihkan.

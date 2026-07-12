@@ -29,6 +29,16 @@ pageHeader('Laporan', $user);
 <?php endif; ?>
 </div>
 
+<?php if ($isBusiness): ?>
+<!-- Sub-toggle mode Laba-Rugi: laporanPnl() menerima period YYYY-MM ATAU
+     year YYYY -- toggle ini menentukan param mana yg dikirim + arah chevron
+     periode. HANYA tampil saat tab Laba-Rugi aktif. -->
+<div class="segmented lp-pnl-mode" id="lpPnlMode" hidden>
+  <button type="button" class="segmented-btn active" data-mode="monthly">Bulanan</button>
+  <button type="button" class="segmented-btn" data-mode="yearly">Tahunan</button>
+</div>
+<?php endif; ?>
+
 <div class="bg-month-nav">
   <button type="button" class="bg-month-btn" id="lpPrev" aria-label="Periode sebelumnya">‹</button>
   <span class="bg-month-label" id="lpPeriodLabel">-</span>
@@ -86,7 +96,15 @@ pageHeader('Laporan', $user);
     tab: 'monthly',
     period: now.getFullYear() + '-' + pad2(now.getMonth() + 1),
     year: now.getFullYear(),
+    pnlMode: 'monthly', // mode sub-toggle tab Laba-Rugi: 'monthly'|'yearly'
   };
+
+  // Tampilan tahunan aktif? true utk tab Tahunan, ATAU tab Laba-Rugi dgn
+  // sub-toggle Tahunan -- dipakai bareng oleh label periode, arah chevron,
+  // rentang export, & payload API.
+  function isYearlyView() {
+    return state.tab === 'yearly' || (state.tab === 'pnl' && state.pnlMode === 'yearly');
+  }
 
   function shiftPeriod(period, delta) {
     var parts = period.split('-');
@@ -110,7 +128,7 @@ pageHeader('Laporan', $user);
   }
 
   function currentRange() {
-    if (state.tab === 'yearly') {
+    if (isYearlyView()) {
       return { from: state.year + '-01-01', to: state.year + '-12-31' };
     }
     return { from: state.period + '-01', to: state.period + '-' + lastDayOfPeriod(state.period) };
@@ -120,13 +138,15 @@ pageHeader('Laporan', $user);
 
   var tabsEl = document.getElementById('lpTabs');
   var periodLabelEl = document.getElementById('lpPeriodLabel');
+  var pnlModeEl = document.getElementById('lpPnlMode'); // null di space personal
 
   function updateNavLabel() {
-    periodLabelEl.textContent = state.tab === 'yearly' ? String(state.year) : periodLabel(state.period);
+    periodLabelEl.textContent = isYearlyView() ? String(state.year) : periodLabel(state.period);
   }
 
   function applyTabLabels() {
     var isPnl = state.tab === 'pnl';
+    if (pnlModeEl) pnlModeEl.hidden = !isPnl;
     document.getElementById('lpAkunSection').hidden = isPnl;
     document.getElementById('lpTotalIncomeLabel').textContent = isPnl ? 'Pendapatan' : 'Pemasukan';
     document.getElementById('lpTotalExpenseLabel').textContent = isPnl ? 'Beban' : 'Pengeluaran';
@@ -145,13 +165,24 @@ pageHeader('Laporan', $user);
     load();
   });
 
+  if (pnlModeEl) {
+    pnlModeEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.segmented-btn');
+      if (!btn || btn.classList.contains('active')) return;
+      Array.prototype.forEach.call(pnlModeEl.children, function (b) { b.classList.toggle('active', b === btn); });
+      state.pnlMode = btn.dataset.mode;
+      updateNavLabel();
+      load();
+    });
+  }
+
   document.getElementById('lpPrev').addEventListener('click', function () {
-    if (state.tab === 'yearly') { state.year -= 1; } else { state.period = shiftPeriod(state.period, -1); }
+    if (isYearlyView()) { state.year -= 1; } else { state.period = shiftPeriod(state.period, -1); }
     updateNavLabel();
     load();
   });
   document.getElementById('lpNext').addEventListener('click', function () {
-    if (state.tab === 'yearly') { state.year += 1; } else { state.period = shiftPeriod(state.period, 1); }
+    if (isYearlyView()) { state.year += 1; } else { state.period = shiftPeriod(state.period, 1); }
     updateNavLabel();
     load();
   });
@@ -309,7 +340,9 @@ pageHeader('Laporan', $user);
 
   function load() {
     var action = state.tab;
-    var payload = state.tab === 'yearly' ? { year: state.year } : { period: state.period };
+    // ?a=pnl menerima SALAH SATU period/year (lihat api/laporan.php) --
+    // tampilan tahunan (tab Tahunan atau pnl mode tahunan) kirim year.
+    var payload = isYearlyView() ? { year: state.year } : { period: state.period };
     return api('api/laporan.php?a=' + action, payload).then(function (json) {
       render(json.report);
     }).catch(function (err) {

@@ -2152,6 +2152,18 @@ button {
    .lp-children), seksi Per Akun (tabel kecil, dibungkus .lp-akun-table-wrap
    overflow-x:auto -- wajib, tabel 4 kolom bisa overflow di layar sempit). */
 
+/* Sub-toggle mode Laba-Rugi (bulanan/tahunan) -- versi mengecil dari
+   .segmented tab utama, hanya tampil saat tab Laba-Rugi aktif. */
+.lp-pnl-mode {
+  max-width: 240px;
+  margin: 0 auto 14px;
+}
+
+.lp-pnl-mode .segmented-btn {
+  padding: 7px 6px;
+  font-size: 12px;
+}
+
 .lp-total-card {
   display: flex;
   flex-direction: column;

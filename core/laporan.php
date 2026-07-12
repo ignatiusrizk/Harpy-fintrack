@@ -378,9 +378,12 @@ function csvBuildRow(array $fields): string
  * akun/kategori/akun tujuan) jadi 6 field CSV export sesuai urutan
  * LAPORAN_CSV_HEADER. Transfer: kolom akun jadi "AkunSumber → AkunTujuan",
  * kolom kategori dikosongkan (transfer tidak punya kategori pendapatan/beban).
- * Jumlah dicetak angka polos 2 desimal titik (bukan format Rupiah "Rp x.xxx")
- * -- CSV dibuka spreadsheet, kolom numerik mentah lebih berguna drpd string
- * berformat (bisa langsung dijumlah/pivot).
+ * Jumlah dicetak angka polos 2 desimal KOMA tanpa pemisah ribuan (mis.
+ * "500000,00" -- bukan "500000.00", bukan pula format Rupiah "Rp x.xxx"):
+ * delimiter ';' dipilih justru krn Excel locale Indonesia (list separator
+ * ';', desimal koma) -- kalau desimalnya titik, Excel-ID membaca kolom
+ * jumlah sbg TEKS, tidak bisa dijumlah/pivot. Koma di dalam field aman krn
+ * pemisah kolomnya ';'.
  */
 function txToCsvFields(array $row): array
 {
@@ -395,7 +398,7 @@ function txToCsvFields(array $row): array
         LAPORAN_CSV_TYPE_LABELS[$row['type']] ?? $row['type'],
         $kategori,
         $akun,
-        sprintf('%.2f', (float) $row['amount']),
+        number_format((float) $row['amount'], 2, ',', ''),
         (string) ($row['note'] ?? ''),
     ];
 }

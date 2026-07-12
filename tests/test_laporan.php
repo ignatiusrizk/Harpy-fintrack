@@ -261,13 +261,16 @@ $csv = ob_get_clean();
 assertSame("\xEF\xBB\xBF", substr($csv, 0, 3), 'streamTransactionsCsv: BOM UTF-8 di awal output');
 assertSame(0, strpos($csv, "\xEF\xBB\xBFtanggal;jenis;kategori;akun;jumlah;catatan\r\n"), 'streamTransactionsCsv: baris header persis setelah BOM');
 
-$expectIncomeRow = $today . ';Pemasukan;Gaji;Dompet;500000.00;Gaji bulan ini' . "\r\n";
-assertSame(true, str_contains($csv, $expectIncomeRow), 'streamTransactionsCsv: baris income Gaji sesuai format (jenis Indonesia, jumlah 2 desimal)');
+// Jumlah = desimal KOMA tanpa pemisah ribuan ("500000,00" bukan "500000.00")
+// -- Excel locale Indonesia (list separator ';', desimal koma) membaca
+// desimal titik sbg TEKS; koma di dalam field aman krn delimiter kolom ';'.
+$expectIncomeRow = $today . ';Pemasukan;Gaji;Dompet;500000,00;Gaji bulan ini' . "\r\n";
+assertSame(true, str_contains($csv, $expectIncomeRow), 'streamTransactionsCsv: baris income Gaji sesuai format (jenis Indonesia, jumlah 2 desimal KOMA)');
 
-$expectTransferRow = $today . ';Transfer;;Dompet → Bank;100000.00;Transfer ke bank' . "\r\n";
+$expectTransferRow = $today . ';Transfer;;Dompet → Bank;100000,00;Transfer ke bank' . "\r\n";
 assertSame(true, str_contains($csv, $expectTransferRow), 'streamTransactionsCsv: baris transfer -- kategori kosong, akun "Sumber → Tujuan"');
 
-$expectUncatRow = $today . ';Pengeluaran;;Dompet;15000.00;Lupa kategori' . "\r\n";
+$expectUncatRow = $today . ';Pengeluaran;;Dompet;15000,00;Lupa kategori' . "\r\n";
 assertSame(true, str_contains($csv, $expectUncatRow), 'streamTransactionsCsv: baris expense tanpa kategori -- kolom kategori kosong');
 
 // Escape CSV: catatan mengandung delimiter ';' & tanda kutip '"'.
@@ -278,7 +281,7 @@ assertSame(7, count($exportWithNote['rows']), 'txListForExport: 7 baris setelah 
 ob_start();
 streamTransactionsCsv($exportWithNote['rows'], $exportWithNote['truncated'], TX_EXPORT_LIMIT);
 $csvEscaped = ob_get_clean();
-$expectEscapedRow = $today . ';Pengeluaran;Belanja;Dompet;25000.00;"Servis; ganti ""oli"" motor"' . "\r\n";
+$expectEscapedRow = $today . ';Pengeluaran;Belanja;Dompet;25000,00;"Servis; ganti ""oli"" motor"' . "\r\n";
 assertSame(true, str_contains($csvEscaped, $expectEscapedRow), 'streamTransactionsCsv: catatan dgn ; dan " dibungkus kutip & kutip internal digandakan');
 
 // Mitigasi CSV/formula injection: catatan diawali '=' -> dibubuhi apostrof
