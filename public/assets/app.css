@@ -1888,7 +1888,8 @@ button {
   font-size: 13px;
 }
 
-.pt-hist-list {
+.pt-hist-list,
+.pt-price-list {
   display: flex;
   flex-direction: column;
   gap: 8px;

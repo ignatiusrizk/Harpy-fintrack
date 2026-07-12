@@ -109,6 +109,10 @@ pageHeader('Investasi', $user);
     <div class="pt-hist-list" id="ptHistList"></div>
     <p class="pt-hist-empty" id="ptHistEmpty" hidden>Belum ada transaksi.</p>
 
+    <p class="bg-section-title">Riwayat Harga</p>
+    <div class="pt-price-list" id="ptPriceList"></div>
+    <p class="pt-hist-empty" id="ptPriceEmpty" hidden>Belum ada harga manual.</p>
+
     <div class="sheet-actions pt-detail-footer">
       <button type="button" class="btn-danger-link" id="ptDetailDelete">Hapus Aset</button>
       <span class="sheet-actions-spacer"></span>
@@ -472,6 +476,8 @@ pageHeader('Investasi', $user);
   var detailGain = document.getElementById('ptDetailGain');
   var histList = document.getElementById('ptHistList');
   var histEmpty = document.getElementById('ptHistEmpty');
+  var priceList = document.getElementById('ptPriceList');
+  var priceEmpty = document.getElementById('ptPriceEmpty');
   var currentDetailAsset = null;
 
   function openDetailSheet(assetId) {
@@ -491,6 +497,8 @@ pageHeader('Investasi', $user);
 
     histList.innerHTML = '';
     histEmpty.hidden = true;
+    priceList.innerHTML = '';
+    priceEmpty.hidden = true;
     loadHistory(assetId);
 
     detailOverlay.hidden = false;
@@ -515,7 +523,16 @@ pageHeader('Investasi', $user);
     var body = document.createElement('span');
     body.className = 'pt-hist-body';
     var line1 = document.createElement('span');
-    line1.textContent = unitFmt(t.units) + ' × ' + rupiahFmt(t.price_per_unit) + (t.fee > 0 ? ' (+fee ' + rupiahFmt(t.fee) + ')' : '');
+    // Fee beli ikut menambah modal (avg cost) -> tampil "+fee". Fee jual
+    // TIDAK memengaruhi perhitungan modal & gain (formula avg cost per spec)
+    // -> tampil netral "(fee RpX, catatan)" supaya tidak terkesan dihitung.
+    var feeLabel = '';
+    if (t.fee > 0) {
+      feeLabel = t.side === 'buy'
+        ? ' (+fee ' + rupiahFmt(t.fee) + ')'
+        : ' (fee ' + rupiahFmt(t.fee) + ', catatan)';
+    }
+    line1.textContent = unitFmt(t.units) + ' × ' + rupiahFmt(t.price_per_unit) + feeLabel;
     var line2 = document.createElement('span');
     line2.className = 'pt-hist-date';
     line2.textContent = t.tx_date;
@@ -535,12 +552,35 @@ pageHeader('Investasi', $user);
     return el;
   }
 
+  function priceRowEl(p) {
+    var el = document.createElement('div');
+    el.className = 'pt-hist-row';
+
+    var body = document.createElement('span');
+    body.className = 'pt-hist-body';
+    var line1 = document.createElement('span');
+    line1.textContent = rupiahFmt(p.price_per_unit);
+    var line2 = document.createElement('span');
+    line2.className = 'pt-hist-date';
+    line2.textContent = p.priced_at;
+    body.appendChild(line1);
+    body.appendChild(line2);
+
+    el.appendChild(body);
+    return el;
+  }
+
   function loadHistory(assetId) {
     return api('api/investasi.php?a=history', { asset_id: assetId }).then(function (json) {
       var trades = (json.trades || []).slice(0, 10);
       histList.innerHTML = '';
       trades.forEach(function (t) { histList.appendChild(histRowEl(t)); });
       histEmpty.hidden = trades.length > 0;
+
+      var prices = (json.prices || []).slice(0, 10);
+      priceList.innerHTML = '';
+      prices.forEach(function (p) { priceList.appendChild(priceRowEl(p)); });
+      priceEmpty.hidden = prices.length > 0;
     }).catch(function (err) {
       toast(err.message);
     });
@@ -627,7 +667,7 @@ pageHeader('Investasi', $user);
     } else {
       tradeSheetTitle.textContent = 'Jual — ' + row.name;
       tradeSubmitBtn.textContent = 'Catat Penjualan';
-      tradeHintEl.textContent = 'Penjualan ini TIDAK menambah saldo akun manapun -- dana hasil jual dianggap masuk dari luar aplikasi. Maks ' + unitFmt(row.units) + ' ' + row.unit_label + ' (posisi saat ini).';
+      tradeHintEl.textContent = 'Penjualan ini TIDAK menambah saldo akun manapun -- dana hasil jual dianggap masuk dari luar aplikasi. Maks ' + unitFmt(row.units) + ' ' + row.unit_label + ' (posisi saat ini). Fee jual dicatat sebagai catatan saja -- tidak memengaruhi perhitungan modal & gain.';
     }
 
     tradeOverlay.hidden = false;

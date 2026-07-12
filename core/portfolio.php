@@ -348,22 +348,27 @@ function setAssetPrice(int $assetId, $priceRaw, ?string $pricedAt): array
     ];
 }
 
+const PT_HISTORY_LIMIT = 20;
+
 /**
  * Riwayat transaksi (beli/jual) + harga manual aset $assetId, urut TERBARU
- * dulu (kebalikan urutan yg dipakai assetPosition() utk hitung avg cost).
- * Kepemilikan divalidasi via ownAsset().
+ * dulu (kebalikan urutan yg dipakai assetPosition() utk hitung avg cost),
+ * masing-masing dibatasi PT_HISTORY_LIMIT baris -- UI cuma menampilkan 10
+ * terakhir per seksi, batasi di query supaya payload tidak membengkak
+ * seiring riwayat menumpuk bertahun-tahun. Kepemilikan divalidasi via
+ * ownAsset().
  */
 function assetHistory(int $assetId): array
 {
     ownAsset($assetId);
 
     $trades = db()->prepare(
-        'SELECT id, side, units, price_per_unit, fee, tx_date FROM asset_transactions WHERE asset_id = ? ORDER BY tx_date DESC, id DESC'
+        'SELECT id, side, units, price_per_unit, fee, tx_date FROM asset_transactions WHERE asset_id = ? ORDER BY tx_date DESC, id DESC LIMIT ' . PT_HISTORY_LIMIT
     );
     $trades->execute([$assetId]);
 
     $prices = db()->prepare(
-        'SELECT id, price_per_unit, priced_at FROM asset_prices WHERE asset_id = ? ORDER BY priced_at DESC, id DESC'
+        'SELECT id, price_per_unit, priced_at FROM asset_prices WHERE asset_id = ? ORDER BY priced_at DESC, id DESC LIMIT ' . PT_HISTORY_LIMIT
     );
     $prices->execute([$assetId]);
 
