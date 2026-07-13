@@ -2003,6 +2003,16 @@ button {
 
 /* ---------- Dashboard (public/index.php) ---------- */
 
+/* Kartu dashboard dibungkus #dbRoot (untuk skeleton loading), jadi tidak jadi
+   anak langsung .app-main dan tidak kebagian gap 16px-nya -> kartu menempel
+   (dempet). Kembalikan jarak antar-kartu di sini supaya konsisten dgn halaman
+   lain. */
+#dbRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* Skeleton sederhana: seluruh kartu diredupkan & tidak bisa ditap selama
    fetch pertama berjalan, dilepas begitu ?a=summary selesai (sukses/gagal). */
 .db-loading {
