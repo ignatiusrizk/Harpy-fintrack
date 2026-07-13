@@ -2023,7 +2023,8 @@ button {
 .db-month-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
+  margin-top: 2px;
 }
 
 .db-month-col {
@@ -2032,6 +2033,14 @@ button {
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
+}
+
+/* Garis pemisah tipis + jarak antar-baris kasih ruang napas -- tanpa ini
+   tiga nominal 20px-bold berdempetan (terasa sesak). Baris pertama tanpa
+   garis; sisanya digantung garis atas. */
+.db-month-col + .db-month-col {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
 }
 
 .db-month-col .tx-summary-label {
