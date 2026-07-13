@@ -136,6 +136,7 @@ function setRememberCookie(int $userId): void
     setcookie(FT_REMEMBER_COOKIE, $selector . ':' . $validator, [
         'expires' => $expires,
         'path' => '/',
+        'secure' => isHttps(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

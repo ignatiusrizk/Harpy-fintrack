@@ -107,7 +107,27 @@ function e($s): string
 }
 
 /**
- * Pastikan session PHP aktif, dengan cookie httponly+samesite Lax.
+ * Deteksi apakah request berjalan di atas HTTPS (termasuk di belakang proxy/LB
+ * seperti Hostinger yang mengirim X-Forwarded-Proto). Dipakai untuk mengaktifkan
+ * flag cookie `Secure` secara otomatis di produksi, sekaligus tetap membiarkannya
+ * off saat pengembangan lokal via http.
+ */
+function isHttps(): bool
+{
+    if (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') {
+        return true;
+    }
+    if (($_SERVER['SERVER_PORT'] ?? null) == 443) {
+        return true;
+    }
+    if (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Pastikan session PHP aktif, dengan cookie httponly+samesite Lax (+Secure di HTTPS).
  * Idempoten — aman dipanggil berkali-kali dari file manapun.
  */
 function ensureSession(): void
@@ -118,6 +138,7 @@ function ensureSession(): void
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
+        'secure' => isHttps(),
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

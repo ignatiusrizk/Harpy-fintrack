@@ -1,0 +1,21 @@
+# PENGAMAN BERLAPIS.
+# Layout benar: document root domain diarahkan ke folder `public/`, sehingga
+# folder ini (root repo) TIDAK pernah dilayani web. File ini hanya jaring
+# pengaman kalau document root salah diarahkan ke root repo — ia memblokir
+# akses langsung ke kode & kredensial sensitif.
+
+Options -Indexes
+
+# Blokir direktori non-publik
+RedirectMatch 403 ^/(core|db|tests|docs|\.superpowers|\.git)(/|$)
+
+# Blokir berkas sensitif berdasarkan ekstensi/nama
+<FilesMatch "\.(sql|md|json|lock|example|ini|sh)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(config\.php|composer\.(json|lock)|\.gitignore|\.env.*)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

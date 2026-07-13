@@ -1,0 +1,9 @@
+# Document root aplikasi = folder public/ ini.
+# Semua kode sensitif (core/, db/, config) ada DI LUAR folder ini.
+
+Options -Indexes
+
+# Blokir file tersembunyi (.git, .env, .htaccess itu sendiri, dsb)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
