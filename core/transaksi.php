@@ -140,10 +140,15 @@ function txValidate(int $spaceId, array $data): array
  * (pseudo-cron auto-post & confirm) utk menandai transaksi ini hasil posting
  * recurring tertentu. $data['goal_id'] opsional -- dipakai HANYA oleh
  * core/goals.php (deposit/withdraw) utk menautkan transaksi ini ke goal
- * tertentu, divalidasi milik $spaceId via txGoalInSpace(). Endpoint API
- * (public/api/transaksi.php) tidak pernah mengisi kedua key ini dari input
+ * tertentu, divalidasi milik $spaceId via txGoalInSpace(). $data['debt_id']
+ * opsional -- dipakai HANYA oleh core/hutang.php (createDebt disburse/
+ * payDebt) utk menautkan transaksi ini ke hutang/piutang tertentu; TIDAK
+ * divalidasi di sini (pemanggil tepercaya sudah pegang row debt via ownDebt()/
+ * spaceId debt itu sendiri -- guard txDebtInSpace() menyusul di Task 3 kalau
+ * endpoint API perlu membaca key ini dari input klien). Endpoint API
+ * (public/api/transaksi.php) tidak pernah mengisi ketiga key ini dari input
  * klien -- txReadInput() tidak membacanya dari post(), jadi klien tidak bisa
- * memalsukan tautan ke recurring/goal milik orang lain lewat endpoint
+ * memalsukan tautan ke recurring/goal/debt milik orang lain lewat endpoint
  * transaksi biasa.
  */
 function createTransaction(int $spaceId, array $data): array
@@ -157,17 +162,22 @@ function createTransaction(int $spaceId, array $data): array
         txGoalInSpace($goalId, $spaceId);
     }
 
+    $debtId = !empty($data['debt_id']) ? (int) $data['debt_id'] : null;
+
     $stmt = db()->prepare(
-        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id, goal_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id, goal_id, debt_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $spaceId, $v['account_id'], $v['category_id'], $v['type'],
-        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId, $goalId,
+        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId, $goalId, $debtId,
     ]);
     $id = (int) db()->lastInsertId();
 
-    return array_merge(['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId, 'goal_id' => $goalId], $v);
+    return array_merge(
+        ['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId, 'goal_id' => $goalId, 'debt_id' => $debtId],
+        $v
+    );
 }
 
 /**
