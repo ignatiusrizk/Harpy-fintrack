@@ -101,8 +101,11 @@ function dbSummaryUpcoming(int $spaceId, string $today): array
  * = installment_amount (cicilan, nominal 1x setoran berikutnya) ATAU
  * debtOutstanding() (non-cicilan, sisa yg jatuh tempo dilunasi -- non-cicilan
  * tidak punya nominal cicilan tersendiri). badge 'Cicilan'/'Jatuh tempo' utk
- * UI. Dipisah dari dbSummaryUpcoming() supaya query recurring & debt tetap
- * independen & mudah dites terpisah.
+ * UI. 'type' diselaraskan dgn item recurring supaya UI bisa pakai satu jalur
+ * render tanda +/- : payable = kita akan MEMBAYAR (arus keluar, 'expense'),
+ * receivable = kita akan MENERIMA (arus masuk, 'income'). Dipisah dari
+ * dbSummaryUpcoming() supaya query recurring & debt tetap independen & mudah
+ * dites terpisah.
  */
 function dbSummaryUpcomingDebts(int $spaceId, string $until): array
 {
@@ -130,6 +133,7 @@ function dbSummaryUpcomingDebts(int $spaceId, string $until): array
             'label' => $d['party'],
             'party' => $d['party'],
             'direction' => $d['direction'],
+            'type' => $d['direction'] === 'receivable' ? 'income' : 'expense',
             'amount' => round($amount, 2),
             'due_date' => $date,
             'is_installment' => $isInstallment,

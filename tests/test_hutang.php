@@ -578,6 +578,20 @@ assertSame(true, $foundSettledItem === null, 'dbSummaryUpcoming: debt settled TI
 assertSame(true, $foundRecurringItem !== null, 'dbSummaryUpcoming: item recurring tetap muncul, kind="recurring"');
 assertSame('reminder', $foundRecurringItem['mode'] ?? null, 'dbSummaryUpcoming(recurring): field lama (mode) tetap ada');
 
+// Bentuk item debt WAJIB konsisten spy renderer dashboard (dueRowEl di
+// public/index.php) tidak baca undefined & mem-blank seluruh dashboard:
+// tiap item debt punya kind/date/label/amount/badge + type ('income' utk
+// receivable, 'expense' utk payable) utk jalur render tanda +/- yg sama dgn
+// recurring. Regresi live yg ditemukan reviewer -- lihat test_dashboard_render.js.
+foreach (['kind', 'date', 'label', 'amount', 'badge', 'type'] as $key) {
+    assertSame(true, array_key_exists($key, $foundCicilanItem), "dbSummaryUpcoming(debt cicilan): item punya key '{$key}' (renderer tidak baca undefined)");
+    assertSame(true, array_key_exists($key, $foundDueItem), "dbSummaryUpcoming(debt non-cicilan): item punya key '{$key}' (renderer tidak baca undefined)");
+}
+assertSame(true, ($foundCicilanItem['date'] ?? null) !== null && ($foundCicilanItem['date'] ?? '') !== '', 'dbSummaryUpcoming(debt cicilan): date non-null non-kosong (shortDateLabel aman)');
+assertSame(true, ($foundDueItem['date'] ?? null) !== null && ($foundDueItem['date'] ?? '') !== '', 'dbSummaryUpcoming(debt non-cicilan): date non-null non-kosong (shortDateLabel aman)');
+assertSame('expense', $foundCicilanItem['type'] ?? null, 'dbSummaryUpcoming(debt payable/cicilan): type=expense (arus keluar, tanda -)');
+assertSame('income', $foundDueItem['type'] ?? null, 'dbSummaryUpcoming(debt receivable): type=income (arus masuk, tanda +)');
+
 // gabungan terurut tanggal terdekat (lalu id ASC)
 $sortKeys = array_map(fn ($i) => [$i['date'], $i['id']], $upcoming);
 $sortedKeys = $sortKeys;
