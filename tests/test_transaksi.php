@@ -5,6 +5,7 @@ require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/balance.php';
 require_once __DIR__ . '/../core/transaksi.php';
 require_once __DIR__ . '/../core/kategori.php';
+require_once __DIR__ . '/../core/goals.php';
 
 // Data test tetap — dibersihkan sebelum & sesudah.
 $testEmail = 'test+transaksi@ft.local';
@@ -40,6 +41,7 @@ function runSub(string $code): array
         . 'require ' . var_export(__DIR__ . '/../core/balance.php', true) . ';'
         . 'require ' . var_export(__DIR__ . '/../core/transaksi.php', true) . ';'
         . 'require ' . var_export(__DIR__ . '/../core/kategori.php', true) . ';'
+        . 'require ' . var_export(__DIR__ . '/../core/goals.php', true) . ';'
         . 'session_start();';
     $output = shell_exec(PHP_BINARY . ' -r ' . escapeshellarg($preamble . $code));
     $json = json_decode((string) $output, true);
@@ -52,6 +54,28 @@ function categoryId(int $spaceId, string $name, string $type): int
     $stmt->execute([$spaceId, $name, $type]);
     $row = $stmt->fetch();
     return $row === false ? 0 : (int) $row['id'];
+}
+
+function txRow(int $id): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM transactions WHERE id = ?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    return $row === false ? null : $row;
+}
+
+function goalEntryCount(int $goalId): int
+{
+    $stmt = db()->prepare('SELECT COUNT(*) c FROM goal_entries WHERE goal_id = ?');
+    $stmt->execute([$goalId]);
+    return (int) $stmt->fetch()['c'];
+}
+
+function goalSaved(int $goalId): float
+{
+    $stmt = db()->prepare('SELECT COALESCE(SUM(amount), 0) saved FROM goal_entries WHERE goal_id = ?');
+    $stmt->execute([$goalId]);
+    return (float) $stmt->fetch()['saved'];
 }
 
 ensureSession();
@@ -284,6 +308,69 @@ assertSame(false, $json['ok'] ?? null, 'ownTransaction: user lain gagal (ok:fals
 assertSame(true, isset($json['error']) && str_contains($json['error'], 'Tidak ditemukan'), 'ownTransaction: user lain -> pesan "Tidak ditemukan"');
 
 // updateTransaction/deleteTransaction endpoint pun pakai ownTransaction -> otomatis terlindungi (dites di atas).
+
+// ==================== Transaksi tertaut goal: update/delete ditolak ====================
+// Transaksi hasil depositGoal() ikut disorot listTransactions()/UI Transaksi
+// spt transaksi biasa, tapi kalau diedit/dihapus dari sana goal_entries jadi
+// basi (lihat komentar txRejectIfGoalLinked()) -- deleteTransaction/
+// updateTransaction WAJIB menolaknya & mengarahkan ke halaman Goals.
+
+$goal = createGoal($spaceId, ['name' => 'Dana Darurat', 'target_amount' => 500000, 'target_date' => null]);
+$goalId = (int) $goal['id'];
+$dep = depositGoal($goalId, $accountA, 100000, $today);
+$goalTxId = (int) $dep['transaction']['id'];
+
+assertSame(1, goalEntryCount($goalId), 'setup goal-linked: 1 goal_entry setelah depositGoal');
+assertSame(100000.0, goalSaved($goalId), 'setup goal-linked: saved = 100rb setelah depositGoal');
+$balanceABeforeReject = accountBalance($accountA);
+
+// (a) delete transaksi goal-linked -> ditolak, goal_entries & goal TIDAK berubah, saldo TIDAK berubah.
+$json = runSub($sessAs($userId) . 'deleteTransaction(' . var_export($goalTxId, true) . ');');
+assertSame(false, $json['ok'] ?? null, 'deleteTransaction: transaksi tertaut goal -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'Goals'), 'deleteTransaction(goal-linked): pesan arahkan ke "Goals"');
+assertSame(true, txRow($goalTxId) !== null, 'deleteTransaction(goal-linked ditolak): transaksi TIDAK ikut terhapus');
+assertSame(1, goalEntryCount($goalId), 'deleteTransaction(goal-linked ditolak): goal_entries TIDAK berubah');
+assertSame(100000.0, goalSaved($goalId), 'deleteTransaction(goal-linked ditolak): saved goal TIDAK berubah');
+assertSame($balanceABeforeReject, accountBalance($accountA), 'deleteTransaction(goal-linked ditolak): saldo akun TIDAK berubah');
+
+// (b) update transaksi goal-linked -> ditolak, amount transaksi & saved goal TIDAK berubah.
+$json = runSub($sessAs($userId) . 'updateTransaction(' . var_export($goalTxId, true) . ', ' . var_export([
+    'account_id' => $accountA, 'category_id' => $makanId, 'type' => 'expense',
+    'amount' => 999000, 'tx_date' => $today, 'note' => 'Coba ganti', 'to_account_id' => null,
+], true) . ');');
+assertSame(false, $json['ok'] ?? null, 'updateTransaction: transaksi tertaut goal -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'Goals'), 'updateTransaction(goal-linked): pesan arahkan ke "Goals"');
+$goalTxAfterRejectedUpdate = txRow($goalTxId);
+assertSame(100000.0, (float) $goalTxAfterRejectedUpdate['amount'], 'updateTransaction(goal-linked ditolak): amount transaksi TIDAK berubah');
+assertSame(100000.0, goalSaved($goalId), 'updateTransaction(goal-linked ditolak): saved goal TIDAK berubah');
+
+// (c) setelah goal induknya dihapus, transaksi (kini goal_id NULL) boleh dihapus normal.
+deleteGoal($goalId);
+$goalTxAfterGoalDelete = txRow($goalTxId);
+assertSame(null, $goalTxAfterGoalDelete['goal_id'], 'deleteGoal: goal_id transaksi jadi NULL setelah goal induk dihapus');
+
+deleteTransaction($goalTxId); // langsung (bukan subprocess) -- harus sukses, tidak exit.
+assertSame(null, txRow($goalTxId), 'deleteTransaction: transaksi ex-goal (goal_id NULL) berhasil dihapus normal');
+
+// ==================== listTransactions: filter q escape wildcard LIKE (%, _) ====================
+// Bug lama: '%'/'_' dari input user tidak di-escape sebelum masuk LIKE ->
+// dianggap wildcard, bukan karakter literal. q='%' saja pada kode lama akan
+// jadi pola '%%%' yg cocok dgn SEMUA baris (termasuk yg tidak punya '%' sama
+// sekali) -- sekarang harus HANYA cocok baris yg benar-benar punya '%'.
+
+$txWithPercent = createTransaction($spaceId, [
+    'account_id' => $accountA, 'category_id' => $makanId, 'type' => 'expense',
+    'amount' => 15000, 'tx_date' => $today, 'note' => 'Diskon 50% dari toko', 'to_account_id' => null,
+]);
+$txNoPercent = createTransaction($spaceId, [
+    'account_id' => $accountA, 'category_id' => $makanId, 'type' => 'expense',
+    'amount' => 12000, 'tx_date' => $today, 'note' => 'Beli kopi susu', 'to_account_id' => null,
+]);
+
+$byPercent = listTransactions($spaceId, ['q' => '%']);
+$percentIds = array_map(fn ($r) => (int) $r['id'], $byPercent['rows']);
+assertSame(true, in_array((int) $txWithPercent['id'], $percentIds, true), 'listTransactions q="%": catatan berisi "%" literal ditemukan');
+assertSame(false, in_array((int) $txNoPercent['id'], $percentIds, true), 'listTransactions q="%": catatan TANPA "%" tidak ikut cocok (bukan wildcard "cocok semua")');
 
 // --- cleanup ---------------------------------------------------------------
 

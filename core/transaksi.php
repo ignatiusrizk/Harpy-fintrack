@@ -171,14 +171,42 @@ function createTransaction(int $spaceId, array $data): array
 }
 
 /**
+ * Pesan penolakan seragam utk update/delete transaksi yg tertaut goal
+ * (goal_id terisi) -- lihat txRejectIfGoalLinked().
+ */
+const TX_GOAL_LINKED_MSG = 'Transaksi ini terkait target tabungan. Kelola lewat halaman Goals (Setor/Tarik).';
+
+/**
+ * Tolak (apiErr, menghentikan eksekusi) kalau transaksi $existing tertaut
+ * goal (goal_id terisi). Transaksi hasil depositGoal()/withdrawGoal() punya
+ * goal_entries yg mengagregasi saved goal (lihat listGoals()) -- kalau
+ * transaksi ini diedit/dihapus lewat modul Transaksi biasa, goal_entries TIDAK
+ * ikut disesuaikan (skema fk_goal_entries_transaction cuma SET NULL
+ * transaction_id, entry amount-nya SENDIRI tetap ada), jadi saved goal jadi
+ * basi/tidak sinkron dgn saldo akun sebenarnya. Satu-satunya jalur aman utk
+ * membalik/menghapus setoran adalah goals.php (withdraw/delete), yg keduanya
+ * menjaga goal_entries & goal tetap konsisten. Transaksi yg goal_id-nya sudah
+ * NULL (mis. setelah goal induknya dihapus -- lihat deleteGoal(), FK SET NULL)
+ * LOLOS cek ini & bisa diedit/dihapus normal spt transaksi biasa.
+ */
+function txRejectIfGoalLinked(array $existing): void
+{
+    if ($existing['goal_id'] !== null) {
+        apiErr(TX_GOAL_LINKED_MSG);
+    }
+}
+
+/**
  * Update transaksi $id. Kepemilikan divalidasi via ownTransaction() (apiErr
  * 404 kalau bukan milik user session) -- space transaksi itu sendiri (bukan
  * space aktif sesi) yg dipakai utk revalidasi akun/kategori, konsisten dgn
- * pola akun.php (edit tidak bergantung ruang aktif saat ini).
+ * pola akun.php (edit tidak bergantung ruang aktif saat ini). Transaksi
+ * tertaut goal ditolak -- lihat txRejectIfGoalLinked().
  */
 function updateTransaction(int $id, array $data): array
 {
     $existing = ownTransaction($id);
+    txRejectIfGoalLinked($existing);
     $spaceId = (int) $existing['space_id'];
     $v = txValidate($spaceId, $data);
 
@@ -195,11 +223,13 @@ function updateTransaction(int $id, array $data): array
 }
 
 /**
- * Hapus transaksi $id. Kepemilikan divalidasi via ownTransaction().
+ * Hapus transaksi $id. Kepemilikan divalidasi via ownTransaction(). Transaksi
+ * tertaut goal ditolak -- lihat txRejectIfGoalLinked().
  */
 function deleteTransaction(int $id): void
 {
-    ownTransaction($id);
+    $existing = ownTransaction($id);
+    txRejectIfGoalLinked($existing);
     db()->prepare('DELETE FROM transactions WHERE id = ?')->execute([$id]);
 }
 
@@ -238,8 +268,14 @@ function txBuildWhere(int $spaceId, array $filters): array
         $params[] = $filters['type'];
     }
     if (!empty($filters['q'])) {
-        $where[] = 't.note LIKE ?';
-        $params[] = '%' . $filters['q'] . '%';
+        // Escape wildcard LIKE (\, %, _) di INPUT USER supaya literal "%"/"_"
+        // dlm catatan dicari apa adanya, bukan diperlakukan sbg wildcard --
+        // parameterized query sudah aman dari injeksi, ini murni soal makna
+        // pencarian. ESCAPE '\' eksplisit (bukan andalkan default MySQL) biar
+        // benar walau sql_mode NO_BACKSLASH_ESCAPES suatu saat aktif.
+        $escapedQ = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $filters['q']);
+        $where[] = "t.note LIKE ? ESCAPE '\\\\'";
+        $params[] = '%' . $escapedQ . '%';
     }
 
     return [implode(' AND ', $where), $params];
