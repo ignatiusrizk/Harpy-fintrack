@@ -1,0 +1,2436 @@
+/* Harpy FinTrack — shell UI: variabel, layout, header, bottom nav, dialog, toast.
+   Light theme saja. Aksen teal keluarga Harpy. Mobile-first, max-width 480px
+   centered di desktop. Tidak ada dependensi eksternal. */
+
+:root {
+  --teal: #1FC0CB;
+  --teal-dark: #16969F;
+  --teal-soft: #E4F8FA;
+  --bg-page: #F4F6F7;
+  --bg-card: #FFFFFF;
+  --text: #1B2528;
+  --text-muted: #66757B;
+  --border: #E3E8EA;
+  --danger: #E11D48;
+  --success: #16A34A;
+  --warning: #F59E0B;
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-nav: 0 -2px 12px rgba(0, 0, 0, 0.07);
+  --nav-height: 62px;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Jaminan global: elemen dgn atribut [hidden] (native, dipakai lewat JS
+   el.hidden = true/false) SELALU display:none, walau elemen itu juga punya
+   kelas yang set `display` eksplisit (mis. .sheet-overlay{display:flex},
+   .field{display:block}) -- tanpa ini specificity [hidden] (attribute, 0-1-0)
+   vs kelas (0-1-0) seri, dan author style menang krn urutan cascade lebih
+   belakang, jadi elemen "hidden" tetap tampil/menutupi & menelan klik. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--bg-page);
+  /* overflow-x guard tinggal di html, bukan body (jangan macetkan scroll trackpad). */
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 480px;
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg-page);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.05);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* ---------- Header ---------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  background: var(--bg-page);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.space-switcher {
+  position: relative;
+}
+
+.space-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.space-btn svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.space-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  padding: 6px;
+  z-index: 30;
+}
+
+.space-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.space-item.active {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+
+/* Item nonaktif (klik -> pindah ruang) tampak sedikit redup; item aktif
+   (disabled, tidak bisa diklik lagi) TIDAK boleh ikut redup -- dia sudah
+   ditandai jelas lewat .active (bg teal-soft). */
+.space-item:disabled:not(.active) {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.space-item.active:disabled {
+  cursor: default;
+}
+
+.space-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.space-item.active .space-badge {
+  color: var(--teal-dark);
+  background: #fff;
+}
+
+.space-item-add {
+  justify-content: center;
+  color: var(--teal-dark);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 12px;
+  border-radius: 0 0 8px 8px;
+}
+
+/* ---------- Main / kartu ---------- */
+
+.app-main {
+  padding: 4px 20px calc(var(--nav-height) + 28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.greet {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.greet-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.balance-label {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.balance-value {
+  margin: 6px 0 4px;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--teal-dark);
+}
+
+.balance-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Menu grid (lainnya.php) ---------- */
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}
+
+.menu-icon {
+  font-size: 22px;
+}
+
+.btn-secondary {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-page);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Bottom nav ---------- */
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 480px;
+  /* Tinggi = nav + inset supaya inset (border-box) tidak memakan area konten;
+     padding-bottom mendorong isi nav ke atas inset. */
+  height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-nav);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 20;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nav-item.active {
+  color: var(--teal-dark);
+}
+
+.nav-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.nav-add {
+  flex: none;
+  width: 54px;
+  height: 54px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(31, 192, 203, 0.45);
+}
+
+.nav-add:active {
+  background: var(--teal-dark);
+}
+
+/* ---------- Dialog custom (lmAlert/lmConfirm/lmPrompt) ---------- */
+
+.lm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 32, 0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  transition: background 0.18s ease;
+}
+
+.lm-overlay.show {
+  background: rgba(20, 30, 32, 0.42);
+}
+
+@media (min-width: 480px) {
+  .lm-overlay {
+    align-items: center;
+  }
+}
+
+.lm-dialog {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  border-radius: 18px 18px 0 0;
+  padding: 22px 22px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.16);
+  transform: translateY(16px);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+@media (min-width: 480px) {
+  .lm-dialog {
+    border-radius: 18px;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.lm-overlay.show .lm-dialog {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.lm-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.lm-msg {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.lm-input {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+}
+
+.lm-input:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.lm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.lm-btn {
+  padding: 11px 18px;
+  border: none;
+  border-radius: var(--radius-control);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lm-btn-ghost {
+  background: var(--bg-page);
+  color: var(--text);
+}
+
+.lm-btn-primary {
+  background: var(--teal);
+  color: #fff;
+}
+
+.lm-btn-primary:active {
+  background: var(--teal-dark);
+}
+
+/* ---------- Toast ---------- */
+
+.lm-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-height) + 16px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 8px);
+  max-width: 88%;
+  background: #24333A;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 18px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  z-index: 110;
+  text-align: center;
+}
+
+.lm-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- Akun (akun.php) ---------- */
+
+.acc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acc-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.acc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 14px 12px 14px 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.acc-card.is-archived {
+  opacity: 0.6;
+}
+
+.acc-icon {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--teal-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.acc-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acc-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acc-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.acc-type {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.acc-balance {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--teal-dark);
+  text-align: right;
+}
+
+.acc-menu-btn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.acc-menu-btn:active {
+  background: var(--bg-page);
+}
+
+/* Dropdown menu kartu (Edit / Arsipkan), diposisikan lewat JS (position:fixed
+   dekat tombol ⋮ yang diklik). */
+.acc-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  padding: 6px;
+}
+
+.acc-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.acc-menu-item:active {
+  background: var(--bg-page);
+}
+
+.acc-menu-item-danger {
+  color: var(--danger);
+}
+
+/* FAB flotasi tambah (dipakai halaman turunan seperti akun.php, di luar
+   bottom-nav yang punya nav-add sendiri untuk transaksi). */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(var(--nav-height) + 20px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(31, 192, 203, 0.45);
+  cursor: pointer;
+  z-index: 25;
+}
+
+.fab:active {
+  background: var(--teal-dark);
+}
+
+/* Sheet form (tambah/edit akun) -- overlay + panel geser dari bawah, gaya
+   sama seperti .lm-overlay/.lm-dialog tapi kelas terpisah krn dipakai lewat
+   markup halaman sendiri (bukan dialog.js). */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 32, 0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 90;
+  transition: background 0.18s ease;
+}
+
+.sheet-overlay.show {
+  background: rgba(20, 30, 32, 0.42);
+}
+
+@media (min-width: 480px) {
+  .sheet-overlay {
+    align-items: center;
+  }
+}
+
+.sheet {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-card);
+  border-radius: 18px 18px 0 0;
+  padding: 22px 22px calc(20px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.16);
+  transform: translateY(16px);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+@media (min-width: 480px) {
+  .sheet {
+    border-radius: 18px;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.sheet-overlay.show .sheet {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.sheet-title {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.field input,
+.field select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg-card);
+  font-family: inherit;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+
+.sheet-msg {
+  min-height: 18px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn-primary {
+  padding: 11px 20px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--teal);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary:active {
+  background: var(--teal-dark);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-danger-link {
+  padding: 11px 4px;
+  border: none;
+  background: none;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sheet-actions-spacer {
+  flex: 1;
+}
+
+/* ---------- Kategori (kategori.php) ---------- */
+
+.cat-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-section-title {
+  margin: 4px 2px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.cat-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.cat-empty {
+  margin: 0;
+  padding: 18px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  background: none;
+  text-align: left;
+}
+
+.cat-list .cat-row:last-child {
+  border-bottom: none;
+}
+
+.cat-row-child {
+  padding-left: 44px;
+}
+
+.cat-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.cat-icon-sm {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  background: var(--bg-page);
+}
+
+.cat-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch.active {
+  border-color: var(--text);
+}
+
+/* ---------- Transaksi (transaksi.php) ---------- */
+
+.tx-summary-period {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tx-summary-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.tx-summary-col-right {
+  text-align: right;
+}
+
+.tx-summary-label {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.tx-summary-value {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.tx-amount-income {
+  color: var(--success);
+}
+
+.tx-amount-expense {
+  color: var(--danger);
+}
+
+.tx-amount-transfer {
+  color: var(--text-muted);
+}
+
+.chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip.active {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+
+.custom-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.custom-range input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-card);
+  font-family: inherit;
+}
+
+.custom-range-sep {
+  color: var(--text-muted);
+  flex: none;
+}
+
+.tx-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.tx-filters select,
+.tx-filters input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-card);
+  font-family: inherit;
+}
+
+.tx-filters-search input {
+  width: 100%;
+}
+
+.tx-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tx-group-title {
+  margin: 4px 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: none;
+}
+
+.tx-group-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.tx-group-list .tx-row:last-child {
+  border-bottom: none;
+}
+
+.tx-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.tx-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tx-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-amount {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tx-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.tx-more {
+  align-self: center;
+}
+
+.picker-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--bg-card);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 6px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-list .picker-row:last-child {
+  border-bottom: none;
+}
+
+.picker-row-child {
+  padding-left: 32px;
+}
+
+.segmented {
+  display: flex;
+  gap: 6px;
+  background: var(--bg-page);
+  border-radius: var(--radius-control);
+  padding: 4px;
+  margin-bottom: 14px;
+}
+
+.segmented-btn {
+  flex: 1;
+  padding: 10px 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.segmented-btn.active {
+  background: var(--bg-card);
+  color: var(--teal-dark);
+  box-shadow: var(--shadow-card);
+}
+
+.amount-input {
+  font-size: 28px !important;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* Picker sheet (akun/kategori dari sheet tambah/edit transaksi) tumpuk di
+   atas sheet utama -- z-index lebih tinggi dari .sheet-overlay standar. */
+#pickOverlay {
+  z-index: 95;
+}
+
+/* ---------- Budget (budget.php) ---------- */
+
+.bg-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.bg-month-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bg-month-btn:active {
+  background: var(--teal-soft);
+}
+
+.bg-month-label {
+  min-width: 140px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.bg-total-card {
+  text-align: center;
+}
+
+.bg-total-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.bg-total-row {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.bg-total-sep {
+  color: var(--text-muted);
+  font-weight: 400;
+  margin: 0 6px;
+}
+
+.bg-total-amount {
+  color: var(--text-muted);
+}
+
+.bg-copy-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.bg-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.bg-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success);
+  transition: width 0.2s ease;
+}
+
+.bg-progress-bar-ok {
+  background: var(--success);
+}
+
+.bg-progress-bar-warn {
+  background: var(--warning);
+}
+
+.bg-progress-bar-danger {
+  background: var(--danger);
+}
+
+.bg-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.bg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.bg-list .bg-row:last-child {
+  border-bottom: none;
+}
+
+.bg-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.bg-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bg-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bg-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.bg-amounts {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bg-add-hint {
+  flex: none;
+  font-size: 12px;
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
+.bg-over-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.bg-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Halaman Recurring (public/recurring.php): seksi "Menunggu konfirmasi"
+   (kartu due bergaris kiri kuning + tombol Catat/Lewati) & list template
+   (baris tap-to-edit + switch aktif). */
+
+.rc-section-title {
+  margin: 20px 2px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.rc-due-list,
+.rc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rc-due-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  border-left: 3px solid var(--warning);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.rc-due-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rc-due-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rc-due-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.rc-due-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.rc-due-actions button {
+  padding: 7px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rc-due-confirm {
+  border-color: var(--teal) !important;
+  background: var(--teal) !important;
+  color: #fff !important;
+}
+
+.rc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 12px 12px 12px 16px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.rc-row.is-inactive {
+  opacity: .55;
+}
+
+.rc-row-icon {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.rc-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rc-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rc-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rc-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.rc-badge-auto {
+  color: var(--teal-dark);
+  background: var(--teal-soft);
+  border-color: var(--teal);
+}
+
+.rc-row-next {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.rc-row-amount {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.rc-amount-income {
+  color: var(--success);
+}
+
+.rc-amount-expense {
+  color: var(--danger);
+}
+
+.rc-switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+}
+
+.rc-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.rc-switch-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.rc-switch-slider::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform .15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+}
+
+.rc-switch input:checked + .rc-switch-slider {
+  background: var(--teal);
+}
+
+.rc-switch input:checked + .rc-switch-slider::before {
+  transform: translateX(16px);
+}
+
+.rc-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.rc-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rc-mode-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.rc-mode-option input {
+  margin-top: 3px;
+}
+
+.rc-mode-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rc-mode-option-text strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.rc-mode-option-text span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bg-section-title {
+  margin: 20px 2px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* Halaman Goals (public/goals.php): kartu progress per goal + seksi "Selesai"
+   collapsed + sheet tambah/edit & sheet setor/tarik. */
+
+.gl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gl-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+  cursor: pointer;
+}
+
+.gl-card.is-done {
+  opacity: .65;
+}
+
+.gl-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gl-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gl-pct {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal-dark);
+}
+
+.gl-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.gl-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--teal);
+  transition: width 0.2s ease;
+}
+
+.gl-card.is-done .gl-progress-bar {
+  background: var(--success);
+}
+
+.gl-amounts {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gl-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gl-meta-overdue {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.gl-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.gl-actions button {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+
+.gl-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.gl-done-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 20px 0 10px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+
+.gl-done-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.gl-done-toggle.open svg {
+  transform: rotate(180deg);
+}
+
+.gl-tx-hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Halaman Investasi (public/investasi.php, Task 9) ----------
+   Kartu total + donut SVG alokasi (manual, tanpa lib) + legend, list aset,
+   sheet detail (posisi + aksi + riwayat), sheet tambah/edit aset, sheet
+   beli/jual, sheet update harga. */
+
+.pt-positive {
+  color: var(--success);
+}
+
+.pt-negative {
+  color: var(--danger);
+}
+
+.pt-total-gain {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pt-alloc-card {
+  margin-top: 16px;
+}
+
+.pt-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.pt-donut-svg-holder {
+  flex: none;
+  width: 120px;
+}
+
+.pt-donut-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.pt-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pt-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pt-legend-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.pt-legend-label {
+  flex: 1;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-legend-pct {
+  flex: none;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pt-asset-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.pt-asset-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.pt-asset-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pt-asset-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-asset-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pt-asset-right {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.pt-asset-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pt-asset-gain {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pt-empty {
+  margin: 24px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.pt-detail-sheet {
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.pt-detail-sub {
+  margin: -10px 0 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pt-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pt-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-page);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+}
+
+.pt-stat span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.pt-stat strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pt-detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.pt-detail-actions button {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+
+.pt-hist-list,
+.pt-price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pt-hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pt-hist-side {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.pt-hist-buy {
+  background: var(--success);
+}
+
+.pt-hist-sell {
+  background: var(--danger);
+}
+
+.pt-hist-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.pt-hist-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pt-hist-del {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pt-hist-del:active {
+  background: var(--bg-page);
+}
+
+.pt-hist-empty {
+  margin: 8px 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.pt-detail-footer {
+  margin-top: 6px;
+}
+
+.pt-trade-hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Sheet aset/beli-jual/update-harga bisa dibuka DI ATAS sheet detail yg
+   masih terbuka (mis. tap "Edit Aset"/"Beli" dari dalam sheet detail) --
+   ketiganya HARUS selalu mengambang di atas #ptDetailSheetOverlay walau
+   urutan DOM-nya lebih dulu (stacking .sheet-overlay generik sama-sama
+   z-index:90, jadi menang urutan DOM bukan urutan dibuka -- override
+   spesifik di sini via selector ID, lebih spesifik drpd .sheet-overlay). */
+#ptAssetSheetOverlay,
+#ptTradeSheetOverlay,
+#ptPriceSheetOverlay {
+  z-index: 95;
+}
+
+/* ---------- Dashboard (public/index.php) ---------- */
+
+/* Skeleton sederhana: seluruh kartu diredupkan & tidak bisa ditap selama
+   fetch pertama berjalan, dilepas begitu ?a=summary selesai (sukses/gagal). */
+.db-loading {
+  opacity: .45;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+
+.db-tap-card {
+  display: block;
+  cursor: pointer;
+}
+
+.db-month-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.db-month-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.db-month-col-center {
+  text-align: center;
+}
+
+.db-month-col-right {
+  text-align: right;
+}
+
+.db-card-link {
+  display: block;
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--teal-dark);
+  text-align: right;
+}
+
+/* Kartu Tagihan Mendatang: baris ringan bersekat (bukan kartu-dalam-kartu
+   spt rc-row di public/recurring.php -- di sini sudah di dalam .card). */
+.db-due-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.db-due-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.db-due-list .db-due-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.db-due-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.db-due-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.db-due-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-due-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.db-due-amount {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Bar chart arus kas (charts.js barChart()) */
+
+.db-cashflow-wrap {
+  overflow-x: auto;
+}
+
+.bar-chart-svg {
+  width: 100%;
+  min-width: 280px;
+  height: auto;
+  display: block;
+}
+
+.bar-chart-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.bar-chart-value {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-muted);
+}
+
+.bar-chart-label {
+  font-size: 10px;
+  fill: var(--text-muted);
+}
+
+.db-chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.db-chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.db-chart-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Donut top kategori (charts.js donutChart()) -- reuse .pt-donut-wrap/
+   .pt-donut-svg-holder/.pt-legend* (public/investasi.php) utk kerangka
+   layout, cuma <svg> class-nya beda (donut-chart-svg vs pt-donut-svg). */
+.donut-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Halaman Laporan (public/laporan.php): kartu Total (Pemasukan/Pengeluaran/
+   Selisih, atau Pendapatan/Beban/Laba Bersih di tab Laba-Rugi), seksi Per
+   Kategori (reuse .bg-list/.bg-row/.bg-icon/.bg-body/.bg-row-top/.bg-name/
+   .bg-amounts dari budget.php -- collapsible parent->anak lewat
+   .lp-children), seksi Per Akun (tabel kecil, dibungkus .lp-akun-table-wrap
+   overflow-x:auto -- wajib, tabel 4 kolom bisa overflow di layar sempit). */
+
+/* Sub-toggle mode Laba-Rugi (bulanan/tahunan) -- versi mengecil dari
+   .segmented tab utama, hanya tampil saat tab Laba-Rugi aktif. */
+.lp-pnl-mode {
+  max-width: 240px;
+  margin: 0 auto 14px;
+}
+
+.lp-pnl-mode .segmented-btn {
+  padding: 7px 6px;
+  font-size: 12px;
+}
+
+.lp-total-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lp-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.lp-total-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.lp-total-income {
+  color: var(--success);
+}
+
+.lp-total-expense {
+  color: var(--danger);
+}
+
+.lp-total-net-row {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.lp-net-value {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.lp-net-value.lp-net-pos {
+  color: var(--teal-dark);
+}
+
+.lp-net-value.lp-net-neg {
+  color: var(--danger);
+}
+
+.lp-export-btn {
+  display: block;
+  width: 100%;
+  margin: 14px 0;
+}
+
+.lp-cat-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.bg-list .lp-cat-item:last-child {
+  border-bottom: none;
+}
+
+.lp-cat-item .bg-row {
+  border-bottom: none;
+}
+
+.lp-row-parent {
+  cursor: pointer;
+}
+
+.lp-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lp-chevron {
+  flex: none;
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: transform 0.15s ease;
+}
+
+.lp-chevron-open {
+  transform: rotate(90deg);
+}
+
+.lp-children {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 8px 62px;
+  gap: 6px;
+}
+
+.lp-child-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.lp-child-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-child-amount {
+  flex: none;
+  font-weight: 600;
+}
+
+.lp-akun-table-wrap {
+  overflow-x: auto;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.lp-akun-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.lp-akun-table th,
+.lp-akun-table td {
+  padding: 10px 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.lp-akun-table th:first-child,
+.lp-akun-table td:first-child {
+  text-align: left;
+}
+
+.lp-akun-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.lp-akun-table tbody tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border);
+}
+
+.lp-akun-in {
+  color: var(--success);
+}
+
+.lp-akun-out {
+  color: var(--danger);
+}
+
+.lp-akun-net-pos {
+  color: var(--teal-dark);
+  font-weight: 700;
+}
+
+.lp-akun-net-neg {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+/* ---------- Pengaturan (pengaturan.php) ---------- */
+
+.pgt-section-title {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pgt-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.pgt-section-head .pgt-section-title {
+  margin: 0;
+}
+
+.pgt-add-space {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pgt-space-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pgt-space-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pgt-space-list .pgt-space-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.pgt-space-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pgt-space-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pgt-space-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pgt-space-actions {
+  display: flex;
+  gap: 18px;
+}
+
+.pgt-space-btn {
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pgt-space-btn-danger {
+  color: var(--danger);
+}
+
+.pgt-version {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
