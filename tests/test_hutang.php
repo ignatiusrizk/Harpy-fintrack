@@ -19,11 +19,18 @@ function cleanupTestHutang(string $email): void
     if ($user === false) {
         return;
     }
-    // Urutan hapus manual (pola sama spt test_goals.php): transactions dulu
-    // sebelum cascade users -> spaces -> accounts, supaya tidak kena FK
-    // RESTRICT (transactions.account_id). debts/debt_payments CASCADE
-    // otomatis lewat spaces -- tidak ada RESTRICT yg menyangkut mereka
-    // (transactions.debt_id sendiri SET NULL, tidak menghalangi apapun).
+    // Urutan hapus manual (pola sama spt test_recurring.php/test_goals.php):
+    // recurrings & transactions dulu sebelum cascade users -> spaces ->
+    // accounts, supaya tidak kena FK RESTRICT (recurrings.account_id/
+    // category_id, transactions.account_id). Task 3 nambah 1 recurring
+    // (dbSummaryUpcoming test) -- tanpa baris ini cleanup gagal 1451 krn
+    // account masih direferensikan recurring saat account ikut ter-cascade.
+    // debts/debt_payments CASCADE otomatis lewat spaces -- tidak ada RESTRICT
+    // yg menyangkut mereka (transactions.debt_id sendiri SET NULL, tidak
+    // menghalangi apapun).
+    $pdo->prepare(
+        'DELETE r FROM recurrings r JOIN spaces s ON s.id = r.space_id WHERE s.user_id = ?'
+    )->execute([$user['id']]);
     $pdo->prepare(
         'DELETE t FROM transactions t JOIN spaces s ON s.id = t.space_id WHERE s.user_id = ?'
     )->execute([$user['id']]);
@@ -69,6 +76,7 @@ function txRow(int $id): ?array
 
 require_once __DIR__ . '/../core/balance.php';
 require_once __DIR__ . '/../core/recurring.php';
+require_once __DIR__ . '/../core/dashboard.php';
 
 ensureSession();
 
@@ -427,6 +435,169 @@ assertSame(850000.0, (float) $history[0]['amount'], 'debtHistory: nominal sesuai
 
 $json = runSub($sessAs($otherUserId) . 'debtHistory(' . var_export($debtCicilanId, true) . ');');
 assertSame(false, $json['ok'] ?? null, 'debtHistory: user lain -> ditolak (ownDebt)');
+
+// ==================== (i) Guard transaksi tertaut debt: update/delete ditolak ====================
+// Sama pola dgn guard goal (tests/test_transaksi.php) -- transaksi hasil
+// payDebt() punya debt_payments/outstanding/next_due yg TIDAK ikut
+// disesuaikan kalau diedit/dihapus lewat modul Transaksi biasa (lihat
+// komentar txRejectIfLinked()), jadi WAJIB ditolak sampai debt induknya
+// dihapus (debt_id jadi NULL via FK SET NULL).
+
+$debtGuard = createDebt($spaceId, ['direction' => 'payable', 'party' => 'Guard Test', 'principal' => 200000, 'start_date' => $today]);
+$debtGuardId = (int) $debtGuard['id'];
+payDebt($debtGuardId, $accountId, 50000, null);
+
+$stmt = $pdo->prepare('SELECT id FROM transactions WHERE debt_id = ?');
+$stmt->execute([$debtGuardId]);
+$guardTxId = (int) $stmt->fetch()['id'];
+
+$balanceBeforeGuardReject = accountBalance($accountId);
+
+// (a) delete transaksi debt-linked -> ditolak, transaksi TIDAK terhapus, saldo TIDAK berubah.
+$json = runSub($sessAs($userId) . 'deleteTransaction(' . var_export($guardTxId, true) . ');');
+assertSame(false, $json['ok'] ?? null, 'deleteTransaction: transaksi tertaut debt -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'Hutang'), 'deleteTransaction(debt-linked): pesan arahkan ke halaman Hutang');
+assertSame(true, txRow($guardTxId) !== null, 'deleteTransaction(debt-linked ditolak): transaksi TIDAK ikut terhapus');
+assertSame($balanceBeforeGuardReject, accountBalance($accountId), 'deleteTransaction(debt-linked ditolak): saldo akun TIDAK berubah');
+
+// (b) update transaksi debt-linked -> ditolak, amount transaksi TIDAK berubah.
+$payCatIdGuard = categoryId($spaceId, 'Bayar Utang/Cicilan', 'expense');
+$json = runSub($sessAs($userId) . 'updateTransaction(' . var_export($guardTxId, true) . ', ' . var_export([
+    'account_id' => $accountId, 'category_id' => $payCatIdGuard, 'type' => 'expense',
+    'amount' => 999000, 'tx_date' => $today, 'note' => 'Coba ganti', 'to_account_id' => null,
+], true) . ');');
+assertSame(false, $json['ok'] ?? null, 'updateTransaction: transaksi tertaut debt -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'Hutang'), 'updateTransaction(debt-linked): pesan arahkan ke halaman Hutang');
+$guardTxAfterRejectedUpdate = txRow($guardTxId);
+assertSame(50000.0, (float) $guardTxAfterRejectedUpdate['amount'], 'updateTransaction(debt-linked ditolak): amount transaksi TIDAK berubah');
+
+// (c) setelah deleteDebt (debt_id jadi NULL), transaksi boleh dihapus normal.
+deleteDebt($debtGuardId);
+$guardTxAfterDebtDelete = txRow($guardTxId);
+assertSame(null, $guardTxAfterDebtDelete['debt_id'], 'deleteDebt: debt_id transaksi jadi NULL setelah debt induk dihapus');
+
+deleteTransaction($guardTxId); // langsung (bukan subprocess) -- harus sukses, tidak exit.
+assertSame(null, txRow($guardTxId), 'deleteTransaction: transaksi ex-debt (debt_id NULL) berhasil dihapus normal');
+
+// ==================== (j) netWorth(): termasuk debtNetWorth via function_exists hook ====================
+// Debt TIDAK di-disburse (tanpa transaksi kas) supaya efeknya terisolasi murni
+// dari debtNetWorth() -- saldo akun/space tidak berubah sama sekali.
+
+$netWorthBeforeHook = netWorth($userId);
+
+$debtNwOnlyPayable = createDebt($spaceId, ['direction' => 'payable', 'party' => 'NW Only Payable', 'principal' => 400000, 'start_date' => $today]);
+$netWorthAfterPayable = netWorth($userId);
+assertSame(round($netWorthBeforeHook - 400000.0, 2), round($netWorthAfterPayable, 2), 'netWorth: turun sebesar sisa payable (400rb) setelah createDebt payable (via debtNetWorth hook)');
+
+$debtNwOnlyReceivable = createDebt($spaceId, ['direction' => 'receivable', 'party' => 'NW Only Receivable', 'principal' => 900000, 'start_date' => $today]);
+$netWorthAfterReceivable = netWorth($userId);
+assertSame(round($netWorthAfterPayable + 900000.0, 2), round($netWorthAfterReceivable, 2), 'netWorth: naik sebesar sisa receivable (900rb) setelah createDebt receivable (via debtNetWorth hook)');
+
+// ==================== (k) dbSummaryUpcoming(): cicilan & non-cicilan due tergabung dgn recurring ====================
+
+$withinWindow = date('Y-m-d', strtotime($today . ' +3 days'));
+$outsideWindow = date('Y-m-d', strtotime($today . ' +10 days'));
+
+// cicilan: next_due default = start_date = $today -> dlm window (today+7)
+$debtUpcomingCicilan = createDebt($spaceId, [
+    'direction' => 'payable', 'party' => 'Upcoming Cicilan', 'principal' => 1200000, 'start_date' => $today,
+    'is_installment' => true, 'installment_count' => 12, 'installment_amount' => 100000, 'frequency' => 'monthly',
+]);
+$debtUpcomingCicilanId = (int) $debtUpcomingCicilan['id'];
+
+// non-cicilan: due_date dlm window
+$debtUpcomingDue = createDebt($spaceId, [
+    'direction' => 'receivable', 'party' => 'Upcoming Due', 'principal' => 300000, 'start_date' => $today,
+    'due_date' => $withinWindow,
+]);
+$debtUpcomingDueId = (int) $debtUpcomingDue['id'];
+
+// non-cicilan: due_date DI LUAR window -> tidak boleh muncul
+$debtOutsideWindow = createDebt($spaceId, [
+    'direction' => 'payable', 'party' => 'Outside Window', 'principal' => 150000, 'start_date' => $today,
+    'due_date' => $outsideWindow,
+]);
+$debtOutsideWindowId = (int) $debtOutsideWindow['id'];
+
+// non-cicilan settled dgn due_date dlm window -> tidak boleh muncul (hanya status active)
+$debtSettledInWindow = createDebt($spaceId, [
+    'direction' => 'payable', 'party' => 'Settled InWindow', 'principal' => 80000, 'start_date' => $today,
+    'due_date' => $withinWindow,
+]);
+$debtSettledInWindowId = (int) $debtSettledInWindow['id'];
+settleDebt($debtSettledInWindowId);
+
+// recurring aktif dlm window, kind harus tetap dibedakan 'recurring'
+$catListrikId = (int) createCategory($spaceId, ['name' => 'Tagihan Listrik', 'type' => 'expense'])['id'];
+$recurringUpcoming = createRecurring($spaceId, [
+    'account_id' => $accountId, 'category_id' => $catListrikId, 'type' => 'expense', 'amount' => 250000,
+    'note' => 'Listrik', 'frequency' => 'monthly', 'mode' => 'reminder', 'start_date' => $today,
+]);
+$recurringUpcomingId = (int) $recurringUpcoming['id'];
+
+$upcoming = dbSummaryUpcoming($spaceId, $today);
+
+$foundCicilanItem = null;
+$foundDueItem = null;
+$foundOutsideItem = null;
+$foundSettledItem = null;
+$foundRecurringItem = null;
+foreach ($upcoming as $item) {
+    if ($item['kind'] === 'debt' && $item['id'] === $debtUpcomingCicilanId) {
+        $foundCicilanItem = $item;
+    }
+    if ($item['kind'] === 'debt' && $item['id'] === $debtUpcomingDueId) {
+        $foundDueItem = $item;
+    }
+    if ($item['kind'] === 'debt' && $item['id'] === $debtOutsideWindowId) {
+        $foundOutsideItem = $item;
+    }
+    if ($item['kind'] === 'debt' && $item['id'] === $debtSettledInWindowId) {
+        $foundSettledItem = $item;
+    }
+    if ($item['kind'] === 'recurring' && $item['id'] === $recurringUpcomingId) {
+        $foundRecurringItem = $item;
+    }
+}
+
+assertSame(true, $foundCicilanItem !== null, 'dbSummaryUpcoming: debt cicilan (next_due dlm window) muncul, kind="debt"');
+assertSame('Upcoming Cicilan', $foundCicilanItem['label'] ?? null, 'dbSummaryUpcoming(cicilan): label = party');
+assertSame(100000.0, (float) ($foundCicilanItem['amount'] ?? 0), 'dbSummaryUpcoming(cicilan): amount = installment_amount');
+assertSame('Cicilan', $foundCicilanItem['badge'] ?? null, 'dbSummaryUpcoming(cicilan): badge "Cicilan"');
+assertSame($today, $foundCicilanItem['date'] ?? null, 'dbSummaryUpcoming(cicilan): date = next_due (start_date)');
+
+assertSame(true, $foundDueItem !== null, 'dbSummaryUpcoming: debt non-cicilan (due_date dlm window) muncul, kind="debt"');
+assertSame('Upcoming Due', $foundDueItem['label'] ?? null, 'dbSummaryUpcoming(non-cicilan): label = party');
+assertSame(300000.0, (float) ($foundDueItem['amount'] ?? 0), 'dbSummaryUpcoming(non-cicilan): amount = outstanding');
+assertSame('Jatuh tempo', $foundDueItem['badge'] ?? null, 'dbSummaryUpcoming(non-cicilan): badge "Jatuh tempo"');
+assertSame($withinWindow, $foundDueItem['date'] ?? null, 'dbSummaryUpcoming(non-cicilan): date = due_date');
+
+assertSame(true, $foundOutsideItem === null, 'dbSummaryUpcoming: debt due_date di luar window (today+10) TIDAK muncul');
+assertSame(true, $foundSettledItem === null, 'dbSummaryUpcoming: debt settled TIDAK muncul walau due_date dlm window');
+
+assertSame(true, $foundRecurringItem !== null, 'dbSummaryUpcoming: item recurring tetap muncul, kind="recurring"');
+assertSame('reminder', $foundRecurringItem['mode'] ?? null, 'dbSummaryUpcoming(recurring): field lama (mode) tetap ada');
+
+// gabungan terurut tanggal terdekat (lalu id ASC)
+$sortKeys = array_map(fn ($i) => [$i['date'], $i['id']], $upcoming);
+$sortedKeys = $sortKeys;
+usort($sortedKeys, fn ($a, $b) => $a <=> $b);
+assertSame($sortedKeys, $sortKeys, 'dbSummaryUpcoming: gabungan recurring+debt terurut tanggal terdekat dulu');
+
+// Cek posisi konkret (independen dari implementasi comparator di atas): item
+// bertanggal lebih dekat (cicilan, $today) harus muncul SEBELUM item
+// bertanggal lebih jauh (due, $withinWindow = today+3).
+$idxCicilan = null;
+$idxDue = null;
+foreach ($upcoming as $idx => $item) {
+    if ($item['kind'] === 'debt' && $item['id'] === $debtUpcomingCicilanId) {
+        $idxCicilan = $idx;
+    }
+    if ($item['kind'] === 'debt' && $item['id'] === $debtUpcomingDueId) {
+        $idxDue = $idx;
+    }
+}
+assertSame(true, $idxCicilan !== null && $idxDue !== null && $idxCicilan < $idxDue, 'dbSummaryUpcoming: item tanggal lebih dekat (cicilan, today) tampil sebelum item lebih jauh (due, today+3)');
 
 // --- cleanup -----------------------------------------------------------------
 

@@ -36,12 +36,17 @@ function cleanupTestTransaksi(string $email): void
  */
 function runSub(string $code): array
 {
-    $preamble = 'require ' . var_export(__DIR__ . '/../core/db.php', true) . ';'
-        . 'require ' . var_export(__DIR__ . '/../core/helpers.php', true) . ';'
-        . 'require ' . var_export(__DIR__ . '/../core/balance.php', true) . ';'
-        . 'require ' . var_export(__DIR__ . '/../core/transaksi.php', true) . ';'
-        . 'require ' . var_export(__DIR__ . '/../core/kategori.php', true) . ';'
-        . 'require ' . var_export(__DIR__ . '/../core/goals.php', true) . ';'
+    // require_once (bukan require polos) -- balance.php sejak Task 3 (hutang)
+    // require_once hutang.php yg sendirinya require_once transaksi.php, jadi
+    // transaksi.php sudah otomatis ter-load lewat balance.php sebelum baris
+    // eksplisitnya sendiri di bawah dieksekusi. require polos akan mengulang
+    // eksekusi file itu & bikin "Cannot redeclare function" fatal.
+    $preamble = 'require_once ' . var_export(__DIR__ . '/../core/db.php', true) . ';'
+        . 'require_once ' . var_export(__DIR__ . '/../core/helpers.php', true) . ';'
+        . 'require_once ' . var_export(__DIR__ . '/../core/balance.php', true) . ';'
+        . 'require_once ' . var_export(__DIR__ . '/../core/transaksi.php', true) . ';'
+        . 'require_once ' . var_export(__DIR__ . '/../core/kategori.php', true) . ';'
+        . 'require_once ' . var_export(__DIR__ . '/../core/goals.php', true) . ';'
         . 'session_start();';
     $output = shell_exec(PHP_BINARY . ' -r ' . escapeshellarg($preamble . $code));
     $json = json_decode((string) $output, true);
