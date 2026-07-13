@@ -2004,30 +2004,34 @@ button {
   cursor: pointer;
 }
 
+/* Tumpukan label-kiri / nilai-kanan (bukan 3 kolom sejajar). Grid sejajar
+   bikin nominal besar (ratusan juta/miliar, mis. P&L usaha) saling tabrakan
+   di layar sempit; layout tumpuk kasih nilai lebar penuh -> aman di segala
+   besaran, sekaligus konsisten dgn kartu Total di Laporan. */
 .db-month-row {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .db-month-col {
-  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
   min-width: 0;
 }
 
-.db-month-col-center {
-  text-align: center;
+.db-month-col .tx-summary-label {
+  margin: 0;
+  flex: none;
 }
 
-.db-month-col-right {
+.db-month-col .tx-summary-value {
+  margin: 0;
   text-align: right;
-}
-
-/* Grid 3 kolom lebih sempit dari header Transaksi 2 kolom -- kecilkan nominal
-   biar tidak saling tabrakan di layar sempit (375px). */
-.db-month-row .tx-summary-value {
-  font-size: 15px;
-  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .db-card-link {
