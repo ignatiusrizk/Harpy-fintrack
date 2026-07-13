@@ -35,10 +35,13 @@ function profileUpdate(int $userId, string $name): array
  * -> apiErr), validasi $new (min PGT_PASSWORD_MIN_LEN karakter), simpan hash
  * baru. Session (di request ini) TIDAK disentuh -- user tetap login sbg
  * dirinya sendiri setelah ganti password (pemanggil/API tidak perlu
- * re-login). Semua remember_tokens milik user ini DIHAPUS -- cookie
- * "ingat saya" yg mungkin bocor/tercuri sebelum password diganti jadi tidak
- * berlaku lagi (validator token tidak terkait hash password, jadi tanpa ini
- * token lama akan tetap bisa auto-login walau password sudah diganti).
+ * re-login), tapi session id DIREGENERASI (mitigasi session fixation --
+ * session id lama yg mungkin bocor sebelum ganti password jadi tidak
+ * berlaku, pola sama dgn logInAs() di core/auth.php). Semua remember_tokens
+ * milik user ini juga DIHAPUS -- cookie "ingat saya" yg mungkin
+ * bocor/tercuri sebelum password diganti jadi tidak berlaku lagi (validator
+ * token tidak terkait hash password, jadi tanpa ini token lama akan tetap
+ * bisa auto-login walau password sudah diganti).
  */
 function passwordChange(int $userId, string $old, string $new): void
 {
@@ -55,6 +58,10 @@ function passwordChange(int $userId, string $old, string $new): void
     $hash = password_hash($new, PASSWORD_DEFAULT);
     db()->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $userId]);
     db()->prepare('DELETE FROM remember_tokens WHERE user_id = ?')->execute([$userId]);
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
 }
 
 /**
@@ -136,33 +143,82 @@ function spaceRename(int $spaceId, string $name): array
  * Hapus ruang $spaceId. Kepemilikan divalidasi via ownSpace(). Ditolak
  * (apiErr) kalau ini satu-satunya ruang milik user -- akun tidak boleh
  * berakhir tanpa ruang sama sekali (currentSpaceId() akan selalu error).
- * Semua isi ruang (accounts/categories/transactions/budgets/recurrings/
- * goals/assets dst) ikut hilang lewat ON DELETE CASCADE di skema DB. Kalau
- * ruang yg dihapus adalah ruang aktif (session), session dipindah ke ruang
- * tertua yg tersisa.
+ *
+ * DELETE FROM spaces polos TIDAK cukup: transactions.account_id/
+ * to_account_id RESTRICT ke accounts, dan recurrings.account_id/category_id
+ * RESTRICT ke accounts/categories -- InnoDB tidak menjamin urutan cascade
+ * antar tabel anak, jadi cascade spaces->accounts kepentok RESTRICT dari
+ * transactions/recurrings yg belum ikut terhapus (ERROR 1451, direproduksi
+ * di DB dev). Karena itu transactions & recurrings dihapus EKSPLISIT lebih
+ * dulu -- ini jalur RESTRICT satu-satunya di skema (goal_entries, budgets,
+ * asset_transactions, asset_prices semuanya CASCADE/SET NULL) -- baru
+ * DELETE spaces yg meng-cascade accounts/categories/budgets/goals(+entries)/
+ * assets(+trades & prices). JOIN accounts/categories dipakai (bukan cuma
+ * WHERE space_id) sbg jaring defensif kalau ada baris lintas-space yg
+ * menunjuk akun/kategori ruang ini.
+ *
+ * Seluruh urutan (cek satu-satunya -> deletes -> pindah session) dibungkus
+ * satu transaksi DB (pola try/rollback sama dgn depositGoal() di
+ * core/goals.php) -- gagal di tengah tidak meninggalkan ruang setengah
+ * kosong. Kalau ruang yg dihapus adalah ruang aktif (session), session
+ * dipindah ke ruang tertua yg tersisa.
  */
 function spaceDelete(int $spaceId): void
 {
     $existing = ownSpace($spaceId);
     $userId = (int) $existing['user_id'];
 
-    $stmt = db()->prepare('SELECT COUNT(*) c FROM spaces WHERE user_id = ?');
-    $stmt->execute([$userId]);
-    $count = (int) $stmt->fetch()['c'];
-    if ($count <= 1) {
-        apiErr('Tidak bisa menghapus satu-satunya ruang Anda');
-    }
-
-    db()->prepare('DELETE FROM spaces WHERE id = ?')->execute([$spaceId]);
-
-    ensureSession();
-    $activeSpaceId = (int) ($_SESSION['space_id'] ?? 0);
-    if ($activeSpaceId === $spaceId) {
-        $stmt = db()->prepare('SELECT id FROM spaces WHERE user_id = ? ORDER BY id ASC LIMIT 1');
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('SELECT COUNT(*) c FROM spaces WHERE user_id = ? FOR UPDATE');
         $stmt->execute([$userId]);
-        $row = $stmt->fetch();
-        // $row selalu ada (count > 1 sebelum delete -> minimal 1 tersisa).
-        $_SESSION['space_id'] = (int) $row['id'];
+        $count = (int) $stmt->fetch()['c'];
+        if ($count <= 1) {
+            $pdo->rollBack();
+            apiErr('Tidak bisa menghapus satu-satunya ruang Anda');
+        }
+
+        // 1. transactions dulu (RESTRICT ke accounts via account_id &
+        //    to_account_id; goal_entries.transaction_id ikut SET NULL).
+        $pdo->prepare(
+            'DELETE t FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.space_id = ?'
+        )->execute([$spaceId]);
+        $pdo->prepare(
+            'DELETE t FROM transactions t JOIN accounts a ON a.id = t.to_account_id WHERE a.space_id = ?'
+        )->execute([$spaceId]);
+        $pdo->prepare('DELETE FROM transactions WHERE space_id = ?')->execute([$spaceId]);
+
+        // 2. recurrings (RESTRICT ke accounts & categories; transaksi yg
+        //    pernah menunjuk recurring ruang ini sudah terhapus di langkah 1).
+        $pdo->prepare(
+            'DELETE r FROM recurrings r JOIN accounts a ON a.id = r.account_id WHERE a.space_id = ?'
+        )->execute([$spaceId]);
+        $pdo->prepare(
+            'DELETE r FROM recurrings r JOIN categories c ON c.id = r.category_id WHERE c.space_id = ?'
+        )->execute([$spaceId]);
+        $pdo->prepare('DELETE FROM recurrings WHERE space_id = ?')->execute([$spaceId]);
+
+        // 3. spaces -- cascade accounts, categories, budgets, goals
+        //    (+goal_entries), assets (+asset_transactions & asset_prices).
+        $pdo->prepare('DELETE FROM spaces WHERE id = ?')->execute([$spaceId]);
+
+        ensureSession();
+        $activeSpaceId = (int) ($_SESSION['space_id'] ?? 0);
+        if ($activeSpaceId === $spaceId) {
+            $stmt = $pdo->prepare('SELECT id FROM spaces WHERE user_id = ? ORDER BY id ASC LIMIT 1');
+            $stmt->execute([$userId]);
+            $row = $stmt->fetch();
+            // $row selalu ada (count > 1 sebelum delete -> minimal 1 tersisa).
+            $_SESSION['space_id'] = (int) $row['id'];
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
 }
 

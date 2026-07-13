@@ -17,7 +17,15 @@ function cleanupTestPengaturan(string $email): void
     if ($user === false) {
         return;
     }
-    // Cascade DB menghapus spaces/accounts/categories/remember_tokens milik user ini.
+    // transactions & recurrings dihapus manual dulu (RESTRICT ke accounts/
+    // categories menghalangi cascade users -> spaces -> accounts, alasan
+    // sama spt spaceDelete & cleanup di test lain), sisanya cascade.
+    $pdo->prepare(
+        'DELETE t FROM transactions t JOIN spaces s ON s.id = t.space_id WHERE s.user_id = ?'
+    )->execute([$user['id']]);
+    $pdo->prepare(
+        'DELETE r FROM recurrings r JOIN spaces s ON s.id = r.space_id WHERE s.user_id = ?'
+    )->execute([$user['id']]);
     $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$user['id']]);
 }
 
@@ -111,7 +119,14 @@ $stmt->execute([$userId]);
 assertSame(1, (int) $stmt->fetch()['c'], 'setup: remember_token test tersimpan');
 
 $beforeHash = userRow($userId)['password_hash'];
-passwordChange($userId, 'password123', 'passwordbaru123');
+// Sukses dijalankan di subprocess (bukan proses test utama): CLI test sudah
+// nge-echo hasil assert, jadi session_regenerate_id() di sana kena "headers
+// already sent" -- di subprocess (serupa konteks API asli) belum ada output.
+$json = runSub($sessAs($userId) . '$sidBefore = session_id();'
+    . 'passwordChange(' . var_export($userId, true) . ', "password123", "passwordbaru123");'
+    . 'echo json_encode(["ok" => true, "sid_changed" => session_id() !== $sidBefore]);');
+assertSame(true, $json['ok'] ?? null, 'passwordChange: sukses dgn password lama benar');
+assertSame(true, $json['sid_changed'] ?? null, 'passwordChange: session id diregenerasi (mitigasi fixation)');
 $afterHash = userRow($userId)['password_hash'];
 assertSame(true, $beforeHash !== $afterHash, 'passwordChange: hash berubah setelah sukses');
 assertSame(true, password_verify('passwordbaru123', $afterHash), 'passwordChange: password baru bisa diverifikasi');
@@ -161,23 +176,70 @@ $json = runSub($sessAs($otherUserId, $otherSpaceId) . 'spaceDelete(' . var_expor
 assertSame(false, $json['ok'] ?? null, 'spaceDelete: satu-satunya ruang -> ditolak');
 assertSame(true, spaceRow($otherSpaceId) !== null, 'spaceDelete: ruang satu-satunya TIDAK terhapus');
 
-// ==================== spaceDelete: ruang aktif -> session pindah + CASCADE ====================
+// ==================== spaceDelete: ruang aktif berisi data realistis -> session pindah + semua hilang ====================
 
 // userId sekarang punya 2 space: $spaceId (Pribadi, lebih tua) & $newSpaceId (Usaha, aktif).
+// Isi ruang Usaha dgn data realistis yg mencakup SEMUA jalur FK, termasuk
+// jalur RESTRICT (transactions/recurrings -> accounts/categories) yg dulu
+// bikin DELETE spaces gagal ERROR 1451.
 $insAcc = $pdo->prepare('INSERT INTO accounts (space_id, name, type, initial_balance) VALUES (?, ?, ?, ?)');
 $insAcc->execute([$newSpaceId, 'Kas Usaha', 'cash', 500000]);
 $accInNewSpace = (int) $pdo->lastInsertId();
 
+$stmt = $pdo->prepare('SELECT id FROM categories WHERE space_id = ? AND type = ? LIMIT 1');
+$stmt->execute([$newSpaceId, 'expense']);
+$catInNewSpace = (int) $stmt->fetch()['id'];
+assertSame(true, $catInNewSpace > 0, 'setup: kategori seed ruang usaha ditemukan');
+
+$pdo->prepare(
+    'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date) VALUES (?, ?, ?, ?, ?, ?)'
+)->execute([$newSpaceId, $accInNewSpace, $catInNewSpace, 'expense', 75000, date('Y-m-d')]);
+$txInNewSpace = (int) $pdo->lastInsertId();
+
+$pdo->prepare(
+    'INSERT INTO recurrings (space_id, account_id, category_id, type, amount, frequency, anchor_date, next_run, mode)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+)->execute([$newSpaceId, $accInNewSpace, $catInNewSpace, 'expense', 100000, 'monthly', date('Y-m-d'), date('Y-m-d'), 'reminder']);
+$rcInNewSpace = (int) $pdo->lastInsertId();
+
+$pdo->prepare('INSERT INTO goals (space_id, name, target_amount) VALUES (?, ?, ?)')
+    ->execute([$newSpaceId, 'Goal Usaha', 1000000]);
+$goalInNewSpace = (int) $pdo->lastInsertId();
+$pdo->prepare('INSERT INTO goal_entries (goal_id, transaction_id, amount, entry_date) VALUES (?, ?, ?, ?)')
+    ->execute([$goalInNewSpace, $txInNewSpace, 75000, date('Y-m-d')]);
+
+$pdo->prepare('INSERT INTO assets (space_id, name, type, unit_label) VALUES (?, ?, ?, ?)')
+    ->execute([$newSpaceId, 'Emas Usaha', 'gold', 'gram']);
+$assetInNewSpace = (int) $pdo->lastInsertId();
+$pdo->prepare(
+    'INSERT INTO asset_transactions (asset_id, side, units, price_per_unit, tx_date) VALUES (?, ?, ?, ?, ?)'
+)->execute([$assetInNewSpace, 'buy', 5, 1200000, date('Y-m-d')]);
+$pdo->prepare('INSERT INTO asset_prices (asset_id, price_per_unit, priced_at) VALUES (?, ?, ?)')
+    ->execute([$assetInNewSpace, 1300000, date('Y-m-d')]);
+
 $_SESSION['user_id'] = $userId;
 $_SESSION['space_id'] = $newSpaceId; // ruang aktif = ruang yg akan dihapus
 
-spaceDelete($newSpaceId);
+spaceDelete($newSpaceId); // dulu: ERROR 1451 di sini (FK RESTRICT); kini harus sukses
 
 assertSame(null, spaceRow($newSpaceId), 'spaceDelete: baris ruang hilang');
-$stmtAcc = $pdo->prepare('SELECT COUNT(*) c FROM accounts WHERE id = ?');
-$stmtAcc->execute([$accInNewSpace]);
-assertSame(0, (int) $stmtAcc->fetch()['c'], 'spaceDelete: akun di dalamnya ikut hilang (CASCADE)');
+
+$countIn = function (string $table, string $col, int $id) use ($pdo): int {
+    $stmt = $pdo->prepare("SELECT COUNT(*) c FROM {$table} WHERE {$col} = ?");
+    $stmt->execute([$id]);
+    return (int) $stmt->fetch()['c'];
+};
+assertSame(0, $countIn('accounts', 'id', $accInNewSpace), 'spaceDelete: akun ikut hilang');
+assertSame(0, $countIn('transactions', 'id', $txInNewSpace), 'spaceDelete: transaksi ikut hilang');
+assertSame(0, $countIn('recurrings', 'id', $rcInNewSpace), 'spaceDelete: recurring ikut hilang');
+assertSame(0, $countIn('goals', 'id', $goalInNewSpace), 'spaceDelete: goal ikut hilang');
+assertSame(0, $countIn('goal_entries', 'goal_id', $goalInNewSpace), 'spaceDelete: goal_entries ikut hilang');
+assertSame(0, $countIn('categories', 'space_id', $newSpaceId), 'spaceDelete: kategori ikut hilang');
+assertSame(0, $countIn('assets', 'id', $assetInNewSpace), 'spaceDelete: aset ikut hilang');
+assertSame(0, $countIn('asset_transactions', 'asset_id', $assetInNewSpace), 'spaceDelete: trade aset ikut hilang');
+assertSame(0, $countIn('asset_prices', 'asset_id', $assetInNewSpace), 'spaceDelete: harga aset ikut hilang');
 assertSame($spaceId, $_SESSION['space_id'], 'spaceDelete: ruang aktif dihapus -> session pindah ke ruang tersisa tertua');
+assertSame(false, $pdo->inTransaction(), 'spaceDelete: tidak meninggalkan transaksi DB terbuka');
 
 // spaceDelete ruang yg BUKAN aktif -> session tidak berubah
 $json = runSub($sessAs($otherUserId) . 'spaceDelete(' . var_export($spaceId, true) . ');');
