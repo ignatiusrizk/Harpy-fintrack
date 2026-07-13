@@ -63,16 +63,31 @@
     }, 2400);
   };
 
-  // Switcher ruang di header: tampilan dropdown saja (endpoint pindah ruang
-  // menyusul di task lain). Item non-aktif memang disabled lewat HTML.
+  // Switcher ruang di header: klik nama ruang lain -> POST space_switch lalu
+  // reload halaman yang sama supaya semua data (& switcher itu sendiri)
+  // konsisten dgn ruang aktif baru. Item ruang yg sedang aktif memang
+  // disabled lewat HTML (tidak perlu switch ke ruang yg sama).
   document.addEventListener('click', function (ev) {
     var menu = document.getElementById('spaceMenu');
     if (!menu) return;
+
     var btn = ev.target.closest('#spaceBtn');
     if (btn) {
       menu.hidden = !menu.hidden;
       return;
     }
+
+    var item = ev.target.closest('.space-item[data-id]');
+    if (item && !item.disabled) {
+      menu.hidden = true;
+      window.api('api/pengaturan.php?a=space_switch', { id: item.dataset.id }).then(function () {
+        window.location.reload();
+      }).catch(function (err) {
+        toast(err.message);
+      });
+      return;
+    }
+
     if (!menu.hidden && !ev.target.closest('#spaceMenu')) {
       menu.hidden = true;
     }

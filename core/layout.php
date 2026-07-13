@@ -52,13 +52,12 @@ function pageHeader(string $title, array $user): void
     <div class="space-menu" id="spaceMenu" hidden>
 <?php foreach ($spaces as $s): ?>
 <?php $isActive = (int) $s['id'] === $activeSpaceId; ?>
-      <button type="button" class="space-item<?= $isActive ? ' active' : '' ?>"<?= $isActive ? '' : ' disabled' ?>>
+      <button type="button" class="space-item<?= $isActive ? ' active' : '' ?>" data-id="<?= (int) $s['id'] ?>"<?= $isActive ? ' disabled' : '' ?>>
         <span><?= e($s['name']) ?></span>
-<?php if (!$isActive): ?>
-        <span class="soon">segera</span>
-<?php endif; ?>
+        <span class="space-badge"><?= $s['type'] === 'business' ? 'Usaha' : 'Pribadi' ?></span>
       </button>
 <?php endforeach; ?>
+      <a href="pengaturan.php" class="space-item space-item-add">+ Tambah ruang</a>
     </div>
   </div>
 </header>

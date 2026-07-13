@@ -138,19 +138,41 @@ button {
   color: var(--teal-dark);
 }
 
-.space-item:disabled {
+/* Item nonaktif (klik -> pindah ruang) tampak sedikit redup; item aktif
+   (disabled, tidak bisa diklik lagi) TIDAK boleh ikut redup -- dia sudah
+   ditandai jelas lewat .active (bg teal-soft). */
+.space-item:disabled:not(.active) {
   color: var(--text-muted);
   cursor: default;
   opacity: 0.7;
 }
 
-.space-item .soon {
-  font-size: 11px;
-  font-weight: 500;
+.space-item.active:disabled {
+  cursor: default;
+}
+
+.space-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
   color: var(--text-muted);
   background: var(--bg-page);
   border-radius: 999px;
   padding: 2px 8px;
+}
+
+.space-item.active .space-badge {
+  color: var(--teal-dark);
+  background: #fff;
+}
+
+.space-item-add {
+  justify-content: center;
+  color: var(--teal-dark);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 12px;
+  border-radius: 0 0 8px 8px;
 }
 
 /* ---------- Main / kartu ---------- */
@@ -226,19 +248,6 @@ button {
 
 .menu-icon {
   font-size: 22px;
-}
-
-.test-label {
-  margin: 0 0 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.test-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .btn-secondary {
@@ -2328,4 +2337,100 @@ button {
 .lp-akun-net-neg {
   color: var(--danger);
   font-weight: 700;
+}
+
+/* ---------- Pengaturan (pengaturan.php) ---------- */
+
+.pgt-section-title {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pgt-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.pgt-section-head .pgt-section-title {
+  margin: 0;
+}
+
+.pgt-add-space {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pgt-space-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pgt-space-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pgt-space-list .pgt-space-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.pgt-space-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pgt-space-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pgt-space-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pgt-space-actions {
+  display: flex;
+  gap: 18px;
+}
+
+.pgt-space-btn {
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pgt-space-btn-danger {
+  color: var(--danger);
+}
+
+.pgt-version {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
 }
