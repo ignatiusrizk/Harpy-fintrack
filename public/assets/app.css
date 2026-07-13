@@ -649,6 +649,18 @@ button {
 .sheet {
   width: 100%;
   max-width: 420px;
+  /* max-height + overflow-y: bug ditemukan Task 5 (hutang.php) -- sheet
+     tambah dgn toggle Cicilan+Dana ke akun aktif bisa setinggi ~1065px,
+     jauh lebih tinggi drpd viewport pendek (mis. 720px desktop test / HP
+     layar pendek). Tanpa guard ini .sheet-overlay (overflow visible,
+     align-items:flex-end) membiarkan bagian atas/bawah sheet meluber keluar
+     viewport TANPA cara scroll -- tombol Simpan jadi tidak terjangkau sama
+     sekali. Guard generik di sini (bukan cuma di blok Hutang) krn kelas
+     .sheet dipakai bersama semua halaman -- sheet pendek (goals/akun/dll)
+     tidak terpengaruh, cuma jadi aman kalau suatu saat kontennya nambah. */
+  max-height: 88vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg-card);
   border-radius: 18px 18px 0 0;
   padding: 22px 22px calc(20px + env(safe-area-inset-bottom));
@@ -2444,4 +2456,275 @@ button {
   text-align: center;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* ---------- Hutang/Piutang & Cicilan (public/hutang.php, Task 5) ----------
+   Kartu total (2 kolom: Utang/Piutang), dua seksi list (kartu progress per
+   debt, seksi Lunas collapsed spt gl-done-toggle), sheet detail (stat grid +
+   riwayat + aksi Bayar/Terima/Tandai Lunas/Edit/Hapus), sheet tambah
+   (segmented arah + toggle cicilan + toggle dana ke akun), sheet edit & sheet
+   bayar/terima terpisah. Reuse elemen global (.field/.sheet-*/.btn-*/
+   .segmented/.rc-switch/.rc-badge/.amount-input/.fab/.balance-label/value/
+   note/.card) -- blok ini cuma bagian yg genuinely baru utk halaman ini,
+   pola sama spt blok Goals/Investasi/Recurring di atas (masing2 halaman
+   punya "flavor" sendiri walau strukturnya mirip). */
+
+.ht-summary-row {
+  display: flex;
+  gap: 16px;
+}
+
+.ht-summary-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.ht-summary-payable {
+  color: var(--danger);
+}
+
+.ht-summary-receivable {
+  color: var(--success);
+}
+
+.ht-section-title {
+  margin: 20px 2px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.ht-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ht-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+  cursor: pointer;
+}
+
+.ht-card.is-settled {
+  opacity: .65;
+}
+
+.ht-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ht-card-party {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ht-card-pct {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--teal-dark);
+}
+
+.ht-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.ht-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--teal);
+  transition: width 0.2s ease;
+}
+
+.ht-card.is-settled .ht-progress-bar {
+  background: var(--success);
+}
+
+.ht-card-amounts {
+  margin: 8px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ht-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ht-card-meta-overdue {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.ht-empty {
+  margin: 12px 0 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.ht-done-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 4px 0 10px;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+
+.ht-done-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.ht-done-toggle.open svg {
+  transform: rotate(180deg);
+}
+
+/* Baris toggle switch (Cicilan / Dana masuk-keluar ke akun) di sheet tambah. */
+.ht-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ht-hint {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ht-detail-sub {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.ht-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ht-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-page);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+}
+
+.ht-stat span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.ht-stat strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ht-detail-note {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-page);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+}
+
+.ht-detail-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.ht-detail-actions button {
+  flex: 1;
+  padding: 10px 8px;
+  font-size: 13px;
+}
+
+.ht-hist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ht-hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ht-hist-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.ht-hist-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ht-hist-empty {
+  margin: 8px 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Sheet edit/bayar bisa dibuka DI ATAS sheet detail yg masih terbuka (mis.
+   tap "Bayar"/"Edit" dari dalam sheet detail) -- pola sama persis dgn
+   #ptAssetSheetOverlay dkk (public/investasi.php, komentar di atas) -- harus
+   selalu mengambang di atas #htDetailSheetOverlay walau urutan DOM-nya lebih
+   dulu, override via selector ID lebih spesifik drpd .sheet-overlay generik. */
+#htPaySheetOverlay,
+#htEditSheetOverlay {
+  z-index: 95;
 }

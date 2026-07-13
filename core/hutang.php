@@ -433,11 +433,16 @@ function settleDebt(int $debtId): array
  * Ringkasan seluruh hutang/piutang $spaceId, dikelompokkan per arah. Tiap
  * item: id, party, principal, outstanding, progress_pct (0-100, dibulatkan &
  * di-clamp -- porsi yg SUDAH dibayar/diterima), is_installment,
- * installment_count, paid_count (COUNT debt_payments), next_due, due_date,
- * status. Urutan tiap arah: aktif dulu, settled di akhir (lalu id ASC).
- * total_payable/total_receivable = Σ outstanding item BERSTATUS AKTIF saja
- * (item settled outstanding-nya ~0, tapi difilter eksplisit spy jelas).
- * Return {payable:[...], receivable:[...], total_payable, total_receivable}.
+ * installment_count, installment_amount, frequency, paid_count (COUNT
+ * debt_payments), next_due, due_date, status, note, direction. (installment_
+ * amount/frequency/note/direction ditambah Task 5 -- dibutuhkan UI utk
+ * prefill nominal default cicilan di sheet Bayar & prefill sheet Edit tanpa
+ * fetch tambahan; tidak ada endpoint "get single debt" terpisah, list sudah
+ * memuat detail lengkap sekali jalan.) Urutan tiap arah: aktif dulu, settled
+ * di akhir (lalu id ASC). total_payable/total_receivable = Σ outstanding item
+ * BERSTATUS AKTIF saja (item settled outstanding-nya ~0, tapi difilter
+ * eksplisit spy jelas). Return {payable:[...], receivable:[...],
+ * total_payable, total_receivable}.
  */
 function debtSummary(int $spaceId): array
 {
@@ -467,10 +472,14 @@ function debtSummary(int $spaceId): array
             'progress_pct' => $progressPct,
             'is_installment' => (bool) $r['is_installment'],
             'installment_count' => $r['installment_count'] !== null ? (int) $r['installment_count'] : null,
+            'installment_amount' => $r['installment_amount'] !== null ? (float) $r['installment_amount'] : null,
+            'frequency' => $r['frequency'],
             'paid_count' => (int) $r['paid_count'],
             'next_due' => $r['next_due'],
             'due_date' => $r['due_date'],
             'status' => $r['status'],
+            'note' => $r['note'],
+            'direction' => $r['direction'],
         ];
 
         $bucket = $r['direction'] === 'payable' ? 'payable' : 'receivable';
