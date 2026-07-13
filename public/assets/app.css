@@ -2023,6 +2023,13 @@ button {
   text-align: right;
 }
 
+/* Grid 3 kolom lebih sempit dari header Transaksi 2 kolom -- kecilkan nominal
+   biar tidak saling tabrakan di layar sempit (375px). */
+.db-month-row .tx-summary-value {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
 .db-card-link {
   display: block;
   margin-top: 12px;
