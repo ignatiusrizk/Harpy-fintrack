@@ -48,7 +48,7 @@ pageHeader('Budget', $user);
       <input type="hidden" id="bgCategoryId" value="">
       <label class="field">
         <span>Nominal Anggaran per Bulan</span>
-        <input type="number" id="bgAmount" class="amount-input" min="0" step="1000" placeholder="0" required>
+        <input type="text" id="bgAmount" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
       <p class="sheet-msg" id="bgSheetMsg"></p>
       <div class="sheet-actions">
@@ -85,6 +85,7 @@ pageHeader('Budget', $user);
   var msgEl = document.getElementById('bgSheetMsg');
   var categoryIdInput = document.getElementById('bgCategoryId');
   var amountInput = document.getElementById('bgAmount');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(amountInput); });
   var submitBtn = document.getElementById('bgSubmit');
   var deleteBtn = document.getElementById('bgDelete');
 
@@ -249,7 +250,7 @@ pageHeader('Budget', $user);
     form.reset();
     sheetTitle.textContent = name;
     categoryIdInput.value = id;
-    amountInput.value = isBudgeted ? amount : '';
+    setRupiahInput(amountInput, isBudgeted ? Math.round(Number(amount)) : '');
     deleteBtn.hidden = !isBudgeted;
 
     overlay.hidden = false;
@@ -289,7 +290,7 @@ pageHeader('Budget', $user);
       await api('api/budget.php?a=set', {
         category_id: categoryIdInput.value,
         period: state.period,
-        amount: amountInput.value,
+        amount: rupiahInputValue(amountInput),
       });
       closeSheet();
       toast('Anggaran tersimpan');

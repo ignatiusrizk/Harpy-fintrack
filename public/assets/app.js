@@ -39,6 +39,73 @@
     return (negatif ? '-' : '') + 'Rp ' + formatted;
   };
 
+  /**
+   * Ambil digit saja dari str lalu kelompokkan ribuan dgn titik (locale ID).
+   * String kosong / tanpa digit -> ''.
+   * Manual grouping (bukan toLocaleString) supaya aman dari efek desimal/
+   * rounding saat string sedang diketik (mis. "1.500.00" belum lengkap).
+   */
+  window.formatThousands = function (str) {
+    var digits = String(str == null ? '' : str).replace(/\D/g, '');
+    // Buang leading zero berlebih (tapi biarkan satu "0" tunggal).
+    digits = digits.replace(/^0+(?=\d)/, '');
+    if (digits === '') return '';
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  /**
+   * Pasang listener input di elemen rupiah: reformat value dgn titik ribuan
+   * sambil mengetik, jaga posisi kursor tetap wajar, set inputMode numeric.
+   * Nilai numerik polos disimpan di dataset.rawValue & bisa diambil via
+   * rupiahInputValue().
+   */
+  window.attachRupiahInput = function (inputEl) {
+    if (!inputEl || inputEl.__rupiahAttached) return;
+    inputEl.__rupiahAttached = true;
+    inputEl.setAttribute('inputmode', 'numeric');
+    inputEl.addEventListener('input', function () {
+      var before = inputEl.value;
+      var selStart = inputEl.selectionStart == null ? before.length : inputEl.selectionStart;
+      // Hitung berapa digit ada di sebelah kiri kursor sebelum reformat,
+      // supaya kursor bisa ditempatkan kembali di posisi digit yg sama
+      // setelah titik pemisah berubah jumlahnya.
+      var digitsBeforeCursor = before.slice(0, selStart).replace(/\D/g, '').length;
+      var formatted = window.formatThousands(before);
+      inputEl.value = formatted;
+      inputEl.dataset.rawValue = before.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+
+      // Cari posisi baru: maju sampai jumlah digit yg sudah dilewati == digitsBeforeCursor.
+      var newPos = formatted.length;
+      var seen = 0;
+      for (var i = 0; i < formatted.length; i++) {
+        if (seen >= digitsBeforeCursor) { newPos = i; break; }
+        if (/\d/.test(formatted[i])) seen++;
+      }
+      if (seen < digitsBeforeCursor) newPos = formatted.length;
+      inputEl.setSelectionRange(newPos, newPos);
+    });
+  };
+
+  /**
+   * Ambil nilai numerik polos (string digit, tanpa titik) dari input rupiah
+   * yg sudah dipasangi attachRupiahInput. Kosong -> ''.
+   */
+  window.rupiahInputValue = function (inputEl) {
+    if (!inputEl) return '';
+    return String(inputEl.value || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  };
+
+  /**
+   * Isi input rupiah dari nilai numerik (mis. saat buka sheet edit) lalu
+   * format langsung (tanpa perlu event input).
+   */
+  window.setRupiahInput = function (inputEl, numericValue) {
+    if (!inputEl) return;
+    var digits = String(numericValue == null ? '' : numericValue).replace(/\D/g, '');
+    inputEl.value = window.formatThousands(digits);
+    inputEl.dataset.rawValue = digits;
+  };
+
   var toastTimer = null;
 
   /**

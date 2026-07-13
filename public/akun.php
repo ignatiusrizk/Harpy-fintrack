@@ -62,7 +62,7 @@ pageHeader('Akun', $user);
       </label>
       <label class="field" id="accInitialField">
         <span>Saldo Awal</span>
-        <input type="number" id="accInitial" value="0" step="1" min="0">
+        <input type="text" id="accInitial" value="0" inputmode="numeric">
       </label>
       <p class="sheet-msg" id="sheetMsg"></p>
       <div class="sheet-actions">
@@ -86,6 +86,7 @@ pageHeader('Akun', $user);
   var nameInput = document.getElementById('accName');
   var typeInput = document.getElementById('accType');
   var initialInput = document.getElementById('accInitial');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(initialInput); });
   var initialField = document.getElementById('accInitialField');
   var submitBtn = document.getElementById('accSubmit');
 
@@ -112,7 +113,7 @@ pageHeader('Akun', $user);
       sheetTitle.textContent = 'Tambah Akun';
       idInput.value = '';
       typeInput.value = 'cash';
-      initialInput.value = '0';
+      setRupiahInput(initialInput, '0');
       initialField.hidden = false;
     }
     overlay.hidden = false;
@@ -152,7 +153,7 @@ pageHeader('Akun', $user);
       payload.id = idInput.value;
     } else {
       action = 'create';
-      payload.initial_balance = initialInput.value || 0;
+      payload.initial_balance = rupiahInputValue(initialInput) || 0;
     }
 
     try {

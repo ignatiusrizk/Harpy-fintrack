@@ -42,7 +42,7 @@ pageHeader('Recurring', $user);
 
       <label class="field">
         <span>Nominal</span>
-        <input type="number" id="rcAmount" class="amount-input" min="1" step="1" placeholder="0" inputmode="numeric" required>
+        <input type="text" id="rcAmount" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
 
       <label class="field">
@@ -359,6 +359,7 @@ pageHeader('Recurring', $user);
   var msgEl = document.getElementById('rcSheetMsg');
   var idInput = document.getElementById('rcId');
   var amountInput = document.getElementById('rcAmount');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(amountInput); });
   var accountSelect = document.getElementById('rcAccount');
   var categorySelect = document.getElementById('rcCategory');
   var frequencySelect = document.getElementById('rcFrequency');
@@ -407,7 +408,7 @@ pageHeader('Recurring', $user);
       sheetTitle.textContent = 'Edit Recurring';
       idInput.value = row.id;
       setType(row.type, row.category_id);
-      amountInput.value = Math.round(Number(row.amount));
+      setRupiahInput(amountInput, Math.round(Number(row.amount)));
       accountSelect.value = row.account_id;
       frequencySelect.value = row.frequency;
       noteInput.value = row.note || '';
@@ -455,7 +456,7 @@ pageHeader('Recurring', $user);
 
     var payload = {
       type: currentType(),
-      amount: amountInput.value,
+      amount: rupiahInputValue(amountInput),
       account_id: accountSelect.value,
       category_id: categorySelect.value,
       frequency: frequencySelect.value,
