@@ -678,7 +678,8 @@ pageHeader('Hutang', $user);
     }
   });
 
-  document.getElementById('htDetailDelete').addEventListener('click', async function () {
+  var detailDeleteBtn = document.getElementById('htDetailDelete');
+  detailDeleteBtn.addEventListener('click', async function () {
     if (!currentDetailDebt) return;
     var word = currentDetailDebt.direction === 'payable' ? 'utang' : 'piutang';
     var ok = await lmConfirm(
@@ -686,6 +687,7 @@ pageHeader('Hutang', $user);
       'Konfirmasi'
     );
     if (!ok) return;
+    detailDeleteBtn.disabled = true;
     try {
       await api('api/hutang.php?a=delete', { debt_id: currentDetailDebt.id });
       closeDetailSheet();
@@ -693,6 +695,8 @@ pageHeader('Hutang', $user);
       load();
     } catch (err) {
       toast(err.message);
+    } finally {
+      detailDeleteBtn.disabled = false;
     }
   });
 
