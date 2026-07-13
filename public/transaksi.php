@@ -73,7 +73,7 @@ pageHeader('Transaksi', $user);
 
       <label class="field">
         <span>Nominal</span>
-        <input type="number" id="txAmount" class="amount-input" min="1" step="1" placeholder="0" inputmode="numeric" required>
+        <input type="text" id="txAmount" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
 
       <label class="field">
@@ -469,6 +469,7 @@ pageHeader('Transaksi', $user);
   var msgEl = document.getElementById('txSheetMsg');
   var idInput = document.getElementById('txId');
   var amountInput = document.getElementById('txAmount');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(amountInput); });
   var dateInput = document.getElementById('txDate');
   var noteInput = document.getElementById('txNote');
   var submitBtn = document.getElementById('txSubmit');
@@ -562,7 +563,7 @@ pageHeader('Transaksi', $user);
       sheetTitle.textContent = 'Edit Transaksi';
       idInput.value = row.id;
       setType(row.type);
-      amountInput.value = Math.round(Number(row.amount));
+      setRupiahInput(amountInput, Math.round(Number(row.amount)));
       dateInput.value = row.tx_date;
       noteInput.value = row.note || '';
       accountIdInput.value = row.account_id;
@@ -612,7 +613,7 @@ pageHeader('Transaksi', $user);
     var type = currentType();
     var payload = {
       type: type,
-      amount: amountInput.value,
+      amount: rupiahInputValue(amountInput),
       tx_date: dateInput.value,
       note: noteInput.value.trim(),
       account_id: accountIdInput.value,

@@ -9,9 +9,13 @@
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
-// balance.php require_once portfolio.php -- spaceBalances/netWorth/
-// portfolioSummary semua tersedia lewat satu require ini.
+// balance.php require_once portfolio.php + hutang.php -- spaceBalances/
+// netWorth/portfolioSummary/debtOutstanding semua tersedia lewat satu
+// require ini. hutang.php di-require_once eksplisit lagi di sini (dedup,
+// tidak masalah) murni supaya dependency dbSummaryUpcomingDebts() ->
+// debtOutstanding() jelas tanpa harus menelusuri balance.php.
 require_once __DIR__ . '/balance.php';
+require_once __DIR__ . '/hutang.php';
 
 /**
  * Total income/expense/net transaksi $spaceId di $period ('YYYY-MM').
@@ -38,11 +42,17 @@ function dbSummaryMonthTotals(int $spaceId, string $period): array
 }
 
 /**
- * Tagihan mendatang $spaceId: recurring AKTIF dgn next_run <= today+7 hari,
- * SEMUA mode (auto & reminder) -- auto akan terposting sendiri lewat
- * pseudo-cron, reminder butuh aksi user, UI yg membedakan lewat badge mode.
- * Termasuk yg sudah lewat (next_run <= today, blm sempat diproses cron/user)
- * -- itu justru paling mendesak utk ditampilkan. Urut next_run terdekat dulu.
+ * Tagihan mendatang $spaceId: recurring AKTIF dgn next_run <= today+7 hari
+ * (SEMUA mode -- auto akan terposting sendiri lewat pseudo-cron, reminder
+ * butuh aksi user, UI yg membedakan lewat badge mode) DIGABUNG dgn hutang/
+ * cicilan AKTIF jatuh tempo dlm rentang yg sama (lihat
+ * dbSummaryUpcomingDebts()). Termasuk yg sudah lewat (tanggal <= today, blm
+ * sempat diproses cron/user/dibayar) -- itu justru paling mendesak utk
+ * ditampilkan. Tiap item diberi key 'kind' ('recurring'|'debt') supaya UI
+ * bisa membedakan cara render/aksi, dan key 'date' seragam (selain field asli
+ * tiap kind, mis. 'next_run' utk recurring tetap ada apa adanya utk kompat)
+ * supaya gabungan keduanya bisa diurut satu kali. Urut tanggal terdekat dulu
+ * (lalu id ASC sbg tie-breaker stabil kalau tanggal sama).
  */
 function dbSummaryUpcoming(int $spaceId, string $today): array
 {
@@ -61,7 +71,9 @@ function dbSummaryUpcoming(int $spaceId, string $today): array
     $out = [];
     foreach ($stmt->fetchAll() as $r) {
         $out[] = [
+            'kind' => 'recurring',
             'id' => (int) $r['id'],
+            'date' => $r['next_run'],
             'note' => $r['note'],
             'category_name' => $r['category_name'],
             'category_icon' => $r['category_icon'],
@@ -70,6 +82,62 @@ function dbSummaryUpcoming(int $spaceId, string $today): array
             'next_run' => $r['next_run'],
             'mode' => $r['mode'],
             'type' => $r['type'],
+        ];
+    }
+
+    $out = array_merge($out, dbSummaryUpcomingDebts($spaceId, $until));
+
+    usort($out, static function (array $a, array $b): int {
+        return [$a['date'], $a['id']] <=> [$b['date'], $b['id']];
+    });
+
+    return $out;
+}
+
+/**
+ * Hutang/piutang AKTIF jatuh tempo $spaceId dlm rentang sampai $until
+ * ('Y-m-d'): cicilan (is_installment=1) pakai next_due, non-cicilan pakai
+ * due_date (due_date NULL -> tidak pernah muncul, tidak ada tenggat). amount
+ * = installment_amount (cicilan, nominal 1x setoran berikutnya) ATAU
+ * debtOutstanding() (non-cicilan, sisa yg jatuh tempo dilunasi -- non-cicilan
+ * tidak punya nominal cicilan tersendiri). badge 'Cicilan'/'Jatuh tempo' utk
+ * UI. 'type' diselaraskan dgn item recurring supaya UI bisa pakai satu jalur
+ * render tanda +/- : payable = kita akan MEMBAYAR (arus keluar, 'expense'),
+ * receivable = kita akan MENERIMA (arus masuk, 'income'). Dipisah dari
+ * dbSummaryUpcoming() supaya query recurring & debt tetap independen & mudah
+ * dites terpisah.
+ */
+function dbSummaryUpcomingDebts(int $spaceId, string $until): array
+{
+    $stmt = db()->prepare(
+        "SELECT * FROM debts
+         WHERE space_id = ? AND status = 'active'
+           AND (
+               (is_installment = 1 AND next_due IS NOT NULL AND next_due <= ?)
+               OR (is_installment = 0 AND due_date IS NOT NULL AND due_date <= ?)
+           )
+         ORDER BY COALESCE(next_due, due_date) ASC, id ASC"
+    );
+    $stmt->execute([$spaceId, $until, $until]);
+
+    $out = [];
+    foreach ($stmt->fetchAll() as $d) {
+        $isInstallment = (int) $d['is_installment'] === 1;
+        $date = $isInstallment ? $d['next_due'] : $d['due_date'];
+        $amount = $isInstallment ? (float) $d['installment_amount'] : debtOutstanding((int) $d['id']);
+
+        $out[] = [
+            'kind' => 'debt',
+            'id' => (int) $d['id'],
+            'date' => $date,
+            'label' => $d['party'],
+            'party' => $d['party'],
+            'direction' => $d['direction'],
+            'type' => $d['direction'] === 'receivable' ? 'income' : 'expense',
+            'amount' => round($amount, 2),
+            'due_date' => $date,
+            'is_installment' => $isInstallment,
+            'badge' => $isInstallment ? 'Cicilan' : 'Jatuh tempo',
         ];
     }
     return $out;

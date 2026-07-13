@@ -40,7 +40,7 @@ pageHeader('Goals', $user);
 
       <label class="field">
         <span>Target Nominal</span>
-        <input type="number" id="glTargetAmount" class="amount-input" min="1" step="1" placeholder="0" inputmode="numeric" required>
+        <input type="text" id="glTargetAmount" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
 
       <label class="field">
@@ -74,7 +74,7 @@ pageHeader('Goals', $user);
 
       <label class="field">
         <span>Nominal</span>
-        <input type="number" id="glTxAmount" class="amount-input" min="1" step="1" placeholder="0" inputmode="numeric" required>
+        <input type="text" id="glTxAmount" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
 
       <label class="field">
@@ -256,6 +256,7 @@ pageHeader('Goals', $user);
   var idInput = document.getElementById('glId');
   var nameInput = document.getElementById('glName');
   var targetAmountInput = document.getElementById('glTargetAmount');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(targetAmountInput); });
   var targetDateInput = document.getElementById('glTargetDate');
   var submitBtn = document.getElementById('glSubmit');
   var deleteBtn = document.getElementById('glDelete');
@@ -269,7 +270,7 @@ pageHeader('Goals', $user);
       sheetTitle.textContent = 'Edit Goal';
       idInput.value = row.id;
       nameInput.value = row.name;
-      targetAmountInput.value = Math.round(Number(row.target_amount));
+      setRupiahInput(targetAmountInput, Math.round(Number(row.target_amount)));
       targetDateInput.value = row.target_date || '';
       deleteBtn.hidden = false;
       finishBtn.hidden = row.is_done;
@@ -317,7 +318,7 @@ pageHeader('Goals', $user);
 
     var payload = {
       name: nameInput.value.trim(),
-      target_amount: targetAmountInput.value,
+      target_amount: rupiahInputValue(targetAmountInput),
       target_date: targetDateInput.value,
     };
 
@@ -384,6 +385,7 @@ pageHeader('Goals', $user);
   var txModeInput = document.getElementById('glTxMode');
   var txAccountSelect = document.getElementById('glTxAccount');
   var txAmountInput = document.getElementById('glTxAmount');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(txAmountInput); });
   var txDateInput = document.getElementById('glTxDate');
   var txHintEl = document.getElementById('glTxHint');
   var txSubmitBtn = document.getElementById('glTxSubmit');
@@ -438,7 +440,7 @@ pageHeader('Goals', $user);
     var payload = {
       goal_id: txGoalIdInput.value,
       account_id: txAccountSelect.value,
-      amount: txAmountInput.value,
+      amount: rupiahInputValue(txAmountInput),
       date: txDateInput.value,
     };
 

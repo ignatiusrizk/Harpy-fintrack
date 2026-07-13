@@ -63,6 +63,23 @@ function txGoalInSpace(int $goalId, int $spaceId): void
 }
 
 /**
+ * Pastikan debt (hutang/piutang) ada & milik $spaceId. Dipakai HANYA saat
+ * $data['debt_id'] diisi oleh pemanggil tepercaya (core/hutang.php) di
+ * createTransaction -- sama pola dgn txGoalInSpace(). Gagal -> apiErr 404.
+ * Return row debt.
+ */
+function txDebtInSpace(int $debtId, int $spaceId): array
+{
+    $stmt = db()->prepare('SELECT id FROM debts WHERE id = ? AND space_id = ?');
+    $stmt->execute([$debtId, $spaceId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
+
+/**
  * Validasi & normalisasi input transaksi (dipakai bareng create & update).
  * Aturan: amount > 0; income/expense wajib category_id milik space & type
  * cocok; transfer wajib to_account_id != account_id, keduanya milik
@@ -140,10 +157,15 @@ function txValidate(int $spaceId, array $data): array
  * (pseudo-cron auto-post & confirm) utk menandai transaksi ini hasil posting
  * recurring tertentu. $data['goal_id'] opsional -- dipakai HANYA oleh
  * core/goals.php (deposit/withdraw) utk menautkan transaksi ini ke goal
- * tertentu, divalidasi milik $spaceId via txGoalInSpace(). Endpoint API
- * (public/api/transaksi.php) tidak pernah mengisi kedua key ini dari input
+ * tertentu, divalidasi milik $spaceId via txGoalInSpace(). $data['debt_id']
+ * opsional -- dipakai HANYA oleh core/hutang.php (createDebt disburse/
+ * payDebt) utk menautkan transaksi ini ke hutang/piutang tertentu, divalidasi
+ * milik $spaceId via txDebtInSpace() (defense-in-depth, sama pola dgn
+ * goal_id -- pemanggil tepercaya sudah pegang row debt via ownDebt()/spaceId
+ * debt itu sendiri, jadi ini tidak pernah gagal utk mereka). Endpoint API
+ * (public/api/transaksi.php) tidak pernah mengisi ketiga key ini dari input
  * klien -- txReadInput() tidak membacanya dari post(), jadi klien tidak bisa
- * memalsukan tautan ke recurring/goal milik orang lain lewat endpoint
+ * memalsukan tautan ke recurring/goal/debt milik orang lain lewat endpoint
  * transaksi biasa.
  */
 function createTransaction(int $spaceId, array $data): array
@@ -157,42 +179,67 @@ function createTransaction(int $spaceId, array $data): array
         txGoalInSpace($goalId, $spaceId);
     }
 
+    $debtId = !empty($data['debt_id']) ? (int) $data['debt_id'] : null;
+    if ($debtId !== null) {
+        txDebtInSpace($debtId, $spaceId);
+    }
+
     $stmt = db()->prepare(
-        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id, goal_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id, goal_id, debt_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $spaceId, $v['account_id'], $v['category_id'], $v['type'],
-        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId, $goalId,
+        $v['amount'], $v['tx_date'], $v['note'], $v['to_account_id'], $recurringId, $goalId, $debtId,
     ]);
     $id = (int) db()->lastInsertId();
 
-    return array_merge(['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId, 'goal_id' => $goalId], $v);
+    return array_merge(
+        ['id' => $id, 'space_id' => $spaceId, 'recurring_id' => $recurringId, 'goal_id' => $goalId, 'debt_id' => $debtId],
+        $v
+    );
 }
 
 /**
  * Pesan penolakan seragam utk update/delete transaksi yg tertaut goal
- * (goal_id terisi) -- lihat txRejectIfGoalLinked().
+ * (goal_id terisi) -- lihat txRejectIfLinked().
  */
 const TX_GOAL_LINKED_MSG = 'Transaksi ini terkait target tabungan. Kelola lewat halaman Goals (Setor/Tarik).';
 
 /**
- * Tolak (apiErr, menghentikan eksekusi) kalau transaksi $existing tertaut
- * goal (goal_id terisi). Transaksi hasil depositGoal()/withdrawGoal() punya
- * goal_entries yg mengagregasi saved goal (lihat listGoals()) -- kalau
- * transaksi ini diedit/dihapus lewat modul Transaksi biasa, goal_entries TIDAK
- * ikut disesuaikan (skema fk_goal_entries_transaction cuma SET NULL
- * transaction_id, entry amount-nya SENDIRI tetap ada), jadi saved goal jadi
- * basi/tidak sinkron dgn saldo akun sebenarnya. Satu-satunya jalur aman utk
- * membalik/menghapus setoran adalah goals.php (withdraw/delete), yg keduanya
- * menjaga goal_entries & goal tetap konsisten. Transaksi yg goal_id-nya sudah
- * NULL (mis. setelah goal induknya dihapus -- lihat deleteGoal(), FK SET NULL)
- * LOLOS cek ini & bisa diedit/dihapus normal spt transaksi biasa.
+ * Pesan penolakan seragam utk update/delete transaksi yg tertaut hutang/
+ * piutang (debt_id terisi) -- lihat txRejectIfLinked().
  */
-function txRejectIfGoalLinked(array $existing): void
+const TX_DEBT_LINKED_MSG = 'Transaksi ini terkait utang/cicilan. Kelola lewat halaman Hutang.';
+
+/**
+ * Tolak (apiErr, menghentikan eksekusi) kalau transaksi $existing tertaut
+ * goal (goal_id terisi) ATAU hutang/piutang (debt_id terisi). Transaksi hasil
+ * depositGoal()/withdrawGoal() punya goal_entries yg mengagregasi saved goal
+ * (lihat listGoals()) -- kalau transaksi ini diedit/dihapus lewat modul
+ * Transaksi biasa, goal_entries TIDAK ikut disesuaikan (skema
+ * fk_goal_entries_transaction cuma SET NULL transaction_id, entry amount-nya
+ * SENDIRI tetap ada), jadi saved goal jadi basi/tidak sinkron dgn saldo akun
+ * sebenarnya. Sama pola utk transaksi hasil createDebt(disburse)/payDebt() --
+ * baris debt_payments (kalau ada) & outstanding/next_due debt TIDAK ikut
+ * disesuaikan kalau transaksi kas-nya diedit/dihapus lewat modul Transaksi
+ * biasa (fk_debt_payments_tx cuma SET NULL transaction_id). Satu-satunya
+ * jalur aman utk membalik/menghapus setoran/pembayaran adalah goals.php
+ * (withdraw/delete) & hutang.php (deleteDebt), yg menjaga entitas terkait
+ * tetap konsisten. Transaksi yg goal_id/debt_id-nya sudah NULL (mis. setelah
+ * goal/debt induknya dihapus -- lihat deleteGoal()/deleteDebt(), FK SET NULL)
+ * LOLOS cek ini & bisa diedit/dihapus normal spt transaksi biasa. Goal dicek
+ * lebih dulu (pesan lebih spesifik kalau kedua key entah bagaimana terisi
+ * sekaligus, yg seharusnya tidak pernah terjadi -- satu transaksi hanya
+ * pernah dibuat oleh salah satu modul).
+ */
+function txRejectIfLinked(array $existing): void
 {
     if ($existing['goal_id'] !== null) {
         apiErr(TX_GOAL_LINKED_MSG);
+    }
+    if ($existing['debt_id'] !== null) {
+        apiErr(TX_DEBT_LINKED_MSG);
     }
 }
 
@@ -201,12 +248,12 @@ function txRejectIfGoalLinked(array $existing): void
  * 404 kalau bukan milik user session) -- space transaksi itu sendiri (bukan
  * space aktif sesi) yg dipakai utk revalidasi akun/kategori, konsisten dgn
  * pola akun.php (edit tidak bergantung ruang aktif saat ini). Transaksi
- * tertaut goal ditolak -- lihat txRejectIfGoalLinked().
+ * tertaut goal/debt ditolak -- lihat txRejectIfLinked().
  */
 function updateTransaction(int $id, array $data): array
 {
     $existing = ownTransaction($id);
-    txRejectIfGoalLinked($existing);
+    txRejectIfLinked($existing);
     $spaceId = (int) $existing['space_id'];
     $v = txValidate($spaceId, $data);
 
@@ -224,12 +271,12 @@ function updateTransaction(int $id, array $data): array
 
 /**
  * Hapus transaksi $id. Kepemilikan divalidasi via ownTransaction(). Transaksi
- * tertaut goal ditolak -- lihat txRejectIfGoalLinked().
+ * tertaut goal/debt ditolak -- lihat txRejectIfLinked().
  */
 function deleteTransaction(int $id): void
 {
     $existing = ownTransaction($id);
-    txRejectIfGoalLinked($existing);
+    txRejectIfLinked($existing);
     db()->prepare('DELETE FROM transactions WHERE id = ?')->execute([$id]);
 }
 

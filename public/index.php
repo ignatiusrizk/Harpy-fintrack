@@ -158,26 +158,44 @@ pageHeader('Dashboard', $user);
   }
 
   function dueRowEl(row) {
+    var isDebt = row.kind === 'debt';
+    // Tanggal umum lintas jenis: recurring pakai next_run, debt pakai due
+    // date/next_due -- core menormalkan keduanya ke row.date. Fallback ke
+    // next_run demi kompat kalau ada payload lama, lalu guard string kosong
+    // supaya shortDateLabel() (parseDate().split) tidak pernah kena undefined
+    // & mem-blank seluruh dashboard.
+    var dateStr = row.date || row.next_run || '';
+
     var el = document.createElement('div');
     el.className = 'db-due-row';
 
     var icon = document.createElement('span');
     icon.className = 'db-due-icon';
-    icon.style.background = (row.category_color || '#94A3B8') + '22';
-    icon.textContent = row.category_icon || '🏷️';
+    if (isDebt) {
+      icon.style.background = '#F59E0B22';
+      icon.textContent = '💳';
+    } else {
+      icon.style.background = (row.category_color || '#94A3B8') + '22';
+      icon.textContent = row.category_icon || '🏷️';
+    }
 
     var body = document.createElement('span');
     body.className = 'db-due-body';
     var title = document.createElement('span');
     title.className = 'db-due-title';
-    title.textContent = row.note || row.category_name;
+    title.textContent = row.label || row.note || row.category_name || '';
     var meta = document.createElement('span');
     meta.className = 'db-due-meta';
     var badge = document.createElement('span');
-    badge.className = 'rc-badge' + (row.mode === 'auto' ? ' rc-badge-auto' : '');
-    badge.textContent = row.mode === 'auto' ? 'Otomatis' : 'Pengingat';
+    if (isDebt) {
+      badge.className = 'rc-badge';
+      badge.textContent = row.badge || (row.is_installment ? 'Cicilan' : 'Jatuh tempo');
+    } else {
+      badge.className = 'rc-badge' + (row.mode === 'auto' ? ' rc-badge-auto' : '');
+      badge.textContent = row.mode === 'auto' ? 'Otomatis' : 'Pengingat';
+    }
     var dateLabel = document.createElement('span');
-    dateLabel.textContent = shortDateLabel(row.next_run);
+    dateLabel.textContent = dateStr ? shortDateLabel(dateStr) : '';
     meta.appendChild(badge);
     meta.appendChild(dateLabel);
     body.appendChild(title);

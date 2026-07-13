@@ -137,12 +137,12 @@ pageHeader('Investasi', $user);
 
       <label class="field">
         <span>Harga per Unit</span>
-        <input type="number" id="ptTradePrice" class="amount-input" min="0" step="1" placeholder="0" inputmode="numeric" required>
+        <input type="text" id="ptTradePrice" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
 
       <label class="field">
         <span>Fee (opsional)</span>
-        <input type="number" id="ptTradeFee" class="amount-input" min="0" step="1" placeholder="0" inputmode="numeric">
+        <input type="text" id="ptTradeFee" class="amount-input" placeholder="0" inputmode="numeric">
       </label>
 
       <label class="field">
@@ -170,7 +170,7 @@ pageHeader('Investasi', $user);
 
       <label class="field">
         <span>Harga per Unit</span>
-        <input type="number" id="ptPricePrice" class="amount-input" min="0" step="1" placeholder="0" inputmode="numeric" required>
+        <input type="text" id="ptPricePrice" class="amount-input" placeholder="0" inputmode="numeric" required>
       </label>
 
       <label class="field">
@@ -643,7 +643,9 @@ pageHeader('Investasi', $user);
   var tradeUnitsInput = document.getElementById('ptTradeUnits');
   var tradeUnitsLabel = document.getElementById('ptTradeUnitsLabel');
   var tradePriceInput = document.getElementById('ptTradePrice');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(tradePriceInput); });
   var tradeFeeInput = document.getElementById('ptTradeFee');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(tradeFeeInput); });
   var tradeDateInput = document.getElementById('ptTradeDate');
   var tradeHintEl = document.getElementById('ptTradeHint');
   var tradeSubmitBtn = document.getElementById('ptTradeSubmit');
@@ -696,8 +698,8 @@ pageHeader('Investasi', $user);
       asset_id: tradeAssetIdInput.value,
       side: tradeSideInput.value,
       units: tradeUnitsInput.value,
-      price_per_unit: tradePriceInput.value,
-      fee: tradeFeeInput.value || 0,
+      price_per_unit: rupiahInputValue(tradePriceInput),
+      fee: rupiahInputValue(tradeFeeInput) || 0,
       tx_date: tradeDateInput.value,
     };
 
@@ -722,6 +724,7 @@ pageHeader('Investasi', $user);
   var priceMsgEl = document.getElementById('ptPriceSheetMsg');
   var priceAssetIdInput = document.getElementById('ptPriceAssetId');
   var pricePriceInput = document.getElementById('ptPricePrice');
+  document.addEventListener('DOMContentLoaded', function () { attachRupiahInput(pricePriceInput); });
   var priceDateInput = document.getElementById('ptPriceDate');
   var priceSubmitBtn = document.getElementById('ptPriceSubmit');
 
@@ -729,7 +732,7 @@ pageHeader('Investasi', $user);
     priceMsgEl.textContent = '';
     priceForm.reset();
     priceAssetIdInput.value = row.id;
-    pricePriceInput.value = Math.round(Number(row.last_price)) || '';
+    setRupiahInput(pricePriceInput, Math.round(Number(row.last_price)) || '');
     priceDateInput.value = today;
 
     priceOverlay.hidden = false;
@@ -756,7 +759,7 @@ pageHeader('Investasi', $user);
 
     var payload = {
       asset_id: priceAssetIdInput.value,
-      price_per_unit: pricePriceInput.value,
+      price_per_unit: rupiahInputValue(pricePriceInput),
       priced_at: priceDateInput.value,
     };
 

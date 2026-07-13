@@ -298,3 +298,25 @@ function ownAsset(int $assetId): array
     }
     return $row;
 }
+
+/**
+ * Validasi kepemilikan hutang/piutang: rantai debt -> ruang -> user_id di
+ * session. Tidak ditemukan/bukan milik user -> apiErr 404 (menghentikan
+ * eksekusi). Return row debt lengkap kalau valid. Pola sama persis dgn
+ * ownGoal()/ownAsset().
+ */
+function ownDebt(int $debtId): array
+{
+    ensureSession();
+    $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+    $stmt = db()->prepare(
+        'SELECT d.* FROM debts d JOIN spaces s ON s.id = d.space_id WHERE d.id = ? AND s.user_id = ?'
+    );
+    $stmt->execute([$debtId, $userId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}

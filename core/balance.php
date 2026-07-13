@@ -10,6 +10,12 @@ require_once __DIR__ . '/helpers.php';
 // portfolio.php ikut, sama spt core/auth.php me-require_once recurring.php
 // utk hook pseudo-cron-nya.
 require_once __DIR__ . '/portfolio.php';
+// debtNetWorth() (Task 2/3) di-require_once di sini dgn alasan yg sama persis
+// dgn portfolio.php di atas -- netWorth() di bawah SELALU menyertakannya lewat
+// function_exists() hook. hutang.php sendiri require_once transaksi.php &
+// recurring.php (bukan balance.php) -- tidak ada loop require kembali ke
+// file ini.
+require_once __DIR__ . '/hutang.php';
 
 /**
  * Saldo satu akun (on-the-fly, bukan kolom tersimpan). Akun tidak ditemukan -> 0.0.
@@ -92,7 +98,10 @@ function spaceBalances(int $spaceId): array
 
 /**
  * Net worth user: Σ saldo semua akun di semua ruang personal (type='personal')
- * milik user + portfolioValue($userId) kalau fungsi itu sudah ada (Task 9).
+ * milik user + portfolioValue($userId) kalau fungsi itu sudah ada (Task 9) +
+ * debtNetWorth($userId) kalau fungsi itu sudah ada (Task 2/3 -- piutang
+ * menambah, hutang mengurangi, hanya ruang personal, lihat debtNetWorth()
+ * core/hutang.php).
  */
 function netWorth(int $userId): float
 {
@@ -109,6 +118,10 @@ function netWorth(int $userId): float
 
     if (function_exists('portfolioValue')) {
         $total += portfolioValue($userId);
+    }
+
+    if (function_exists('debtNetWorth')) {
+        $total += debtNetWorth($userId);
     }
 
     return $total;

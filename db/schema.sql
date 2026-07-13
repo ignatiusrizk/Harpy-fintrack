@@ -93,6 +93,34 @@ CREATE TABLE goals (
     CONSTRAINT fk_goals_space FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 7b. debts ---------------------------------------------------------------
+-- (dibuat sebelum transactions krn transactions.debt_id merujuk ke sini)
+-- NB: brief task-1 menulis id/space_id BIGINT UNSIGNED -- diganti INT UNSIGNED
+-- di sini supaya cocok dgn tipe spaces.id (INT UNSIGNED) & konsisten dgn
+-- semua tabel lain di schema ini (BIGINT UNSIGNED vs INT UNSIGNED tidak bisa
+-- jadi pasangan FK di InnoDB -- errno 150, sudah diverifikasi lewat percobaan
+-- CREATE di DB temp).
+CREATE TABLE debts (
+    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    space_id           INT UNSIGNED NOT NULL,
+    direction          ENUM('payable','receivable') NOT NULL,
+    party              VARCHAR(100) NOT NULL,
+    principal          DECIMAL(15,2) NOT NULL,
+    note               VARCHAR(255) NULL,
+    start_date         DATE NOT NULL,
+    due_date           DATE NULL,
+    is_installment     TINYINT(1) NOT NULL DEFAULT 0,
+    installment_count  INT NULL,
+    installment_amount DECIMAL(15,2) NULL,
+    frequency          ENUM('weekly','monthly','yearly') NULL,
+    next_due           DATE NULL,
+    status             ENUM('active','settled') NOT NULL DEFAULT 'active',
+    created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_debts_space FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE CASCADE,
+    INDEX idx_debts_space_status (space_id, status),
+    INDEX idx_debts_space_nextdue (space_id, next_due)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 8. transactions ---------------------------------------------------------------
 CREATE TABLE transactions (
     id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -106,6 +134,7 @@ CREATE TABLE transactions (
     to_account_id INT UNSIGNED NULL,
     recurring_id  INT UNSIGNED NULL,
     goal_id       INT UNSIGNED NULL,
+    debt_id       INT UNSIGNED NULL,
     created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_transactions_space FOREIGN KEY (space_id) REFERENCES spaces(id) ON DELETE CASCADE,
     CONSTRAINT fk_transactions_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE RESTRICT,
@@ -113,6 +142,7 @@ CREATE TABLE transactions (
     CONSTRAINT fk_transactions_to_account FOREIGN KEY (to_account_id) REFERENCES accounts(id) ON DELETE RESTRICT,
     CONSTRAINT fk_transactions_recurring FOREIGN KEY (recurring_id) REFERENCES recurrings(id) ON DELETE SET NULL,
     CONSTRAINT fk_transactions_goal FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL,
+    CONSTRAINT fk_transactions_debt FOREIGN KEY (debt_id) REFERENCES debts(id) ON DELETE SET NULL,
     INDEX idx_transactions_space_date (space_id, tx_date),
     INDEX idx_transactions_account (account_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -138,6 +168,22 @@ CREATE TABLE goal_entries (
     entry_date     DATE NOT NULL,
     CONSTRAINT fk_goal_entries_goal FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
     CONSTRAINT fk_goal_entries_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10b. debt_payments ---------------------------------------------------------------
+-- (dibuat setelah transactions krn debt_payments.transaction_id merujuk ke
+-- sini). Tipe INT UNSIGNED (bukan BIGINT UNSIGNED spt brief task-1) -- sama
+-- alasan spt tabel debts di atas.
+CREATE TABLE debt_payments (
+    id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    debt_id        INT UNSIGNED NOT NULL,
+    amount         DECIMAL(15,2) NOT NULL,
+    pay_date       DATE NOT NULL,
+    transaction_id INT UNSIGNED NULL,
+    note           VARCHAR(255) NULL,
+    CONSTRAINT fk_debt_payments_debt FOREIGN KEY (debt_id) REFERENCES debts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_debt_payments_tx FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL,
+    INDEX idx_debt_payments_debt (debt_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 11. assets ---------------------------------------------------------------
