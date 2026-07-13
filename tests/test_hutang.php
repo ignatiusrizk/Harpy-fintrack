@@ -479,6 +479,31 @@ assertSame(null, $guardTxAfterDebtDelete['debt_id'], 'deleteDebt: debt_id transa
 deleteTransaction($guardTxId); // langsung (bukan subprocess) -- harus sukses, tidak exit.
 assertSame(null, txRow($guardTxId), 'deleteTransaction: transaksi ex-debt (debt_id NULL) berhasil dihapus normal');
 
+// ==================== (i2) txDebtInSpace: debt_id milik space lain -> ditolak ====================
+// Defense-in-depth (bukan bug yg pernah tereksploitasi): endpoint API
+// transaksi biasa tidak pernah mengisi debt_id dari input klien saat ini
+// (lihat komentar createTransaction()), tapi createTransaction() sendiri
+// sekarang WAJIB menolak debt_id yg bukan milik space, sama pola dgn
+// goal_id via txGoalInSpace() -- supaya asimetri validasi tidak jadi celah
+// kalau kelak ada pemanggil lain yg mengisi debt_id dari sumber tak tepercaya.
+
+$otherDebtForCross = createDebt($otherSpaceId, [
+    'direction' => 'payable', 'party' => 'Other Space Debt', 'principal' => 100000, 'start_date' => $today,
+]);
+$otherDebtIdForCross = (int) $otherDebtForCross['id'];
+
+$payCatIdCross = categoryId($spaceId, 'Bayar Utang/Cicilan', 'expense');
+$json = runSub($sessAs($userId) . 'createTransaction(' . var_export($spaceId, true) . ', ' . var_export([
+    'account_id' => $accountId, 'category_id' => $payCatIdCross, 'type' => 'expense',
+    'amount' => 10000, 'tx_date' => $today, 'note' => 'Coba tautkan debt space lain', 'debt_id' => $otherDebtIdForCross,
+], true) . ');');
+assertSame(false, $json['ok'] ?? null, 'createTransaction: debt_id milik space lain -> ditolak');
+assertSame(true, isset($json['error']) && str_contains($json['error'], 'Tidak ditemukan'), 'createTransaction(debt lintas space): pesan "Tidak ditemukan"');
+
+$stmt = $pdo->prepare('SELECT COUNT(*) c FROM transactions WHERE note = ?');
+$stmt->execute(['Coba tautkan debt space lain']);
+assertSame(0, (int) $stmt->fetch()['c'], 'createTransaction(debt lintas space ditolak): transaksi TIDAK tercatat');
+
 // ==================== (j) netWorth(): termasuk debtNetWorth via function_exists hook ====================
 // Debt TIDAK di-disburse (tanpa transaksi kas) supaya efeknya terisolasi murni
 // dari debtNetWorth() -- saldo akun/space tidak berubah sama sekali.

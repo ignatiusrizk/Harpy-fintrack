@@ -63,6 +63,23 @@ function txGoalInSpace(int $goalId, int $spaceId): void
 }
 
 /**
+ * Pastikan debt (hutang/piutang) ada & milik $spaceId. Dipakai HANYA saat
+ * $data['debt_id'] diisi oleh pemanggil tepercaya (core/hutang.php) di
+ * createTransaction -- sama pola dgn txGoalInSpace(). Gagal -> apiErr 404.
+ * Return row debt.
+ */
+function txDebtInSpace(int $debtId, int $spaceId): array
+{
+    $stmt = db()->prepare('SELECT id FROM debts WHERE id = ? AND space_id = ?');
+    $stmt->execute([$debtId, $spaceId]);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        apiErr('Tidak ditemukan', 404);
+    }
+    return $row;
+}
+
+/**
  * Validasi & normalisasi input transaksi (dipakai bareng create & update).
  * Aturan: amount > 0; income/expense wajib category_id milik space & type
  * cocok; transfer wajib to_account_id != account_id, keduanya milik
@@ -142,11 +159,10 @@ function txValidate(int $spaceId, array $data): array
  * core/goals.php (deposit/withdraw) utk menautkan transaksi ini ke goal
  * tertentu, divalidasi milik $spaceId via txGoalInSpace(). $data['debt_id']
  * opsional -- dipakai HANYA oleh core/hutang.php (createDebt disburse/
- * payDebt) utk menautkan transaksi ini ke hutang/piutang tertentu; TIDAK
- * divalidasi di sini (pemanggil tepercaya sudah pegang row debt via ownDebt()/
- * spaceId debt itu sendiri -- guard txDebtInSpace() belum dibutuhkan krn
- * endpoint API tidak pernah membaca key ini dari input klien, lihat di bawah;
- * tambahkan kalau kelak ada endpoint yg perlu). Endpoint API
+ * payDebt) utk menautkan transaksi ini ke hutang/piutang tertentu, divalidasi
+ * milik $spaceId via txDebtInSpace() (defense-in-depth, sama pola dgn
+ * goal_id -- pemanggil tepercaya sudah pegang row debt via ownDebt()/spaceId
+ * debt itu sendiri, jadi ini tidak pernah gagal utk mereka). Endpoint API
  * (public/api/transaksi.php) tidak pernah mengisi ketiga key ini dari input
  * klien -- txReadInput() tidak membacanya dari post(), jadi klien tidak bisa
  * memalsukan tautan ke recurring/goal/debt milik orang lain lewat endpoint
@@ -164,6 +180,9 @@ function createTransaction(int $spaceId, array $data): array
     }
 
     $debtId = !empty($data['debt_id']) ? (int) $data['debt_id'] : null;
+    if ($debtId !== null) {
+        txDebtInSpace($debtId, $spaceId);
+    }
 
     $stmt = db()->prepare(
         'INSERT INTO transactions (space_id, account_id, category_id, type, amount, tx_date, note, to_account_id, recurring_id, goal_id, debt_id)
